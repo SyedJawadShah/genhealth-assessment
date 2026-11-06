@@ -1,0 +1,168 @@
+"""Checks for extracted and user-entered order fields. Pure functions, no I/O.
+
+Every check returns the normalized value only when it passes. A value that is missing or fails
+is reported with a reason and never corrected or guessed.
+"""
+
+import re
+from dataclasses import dataclass
+from datetime import date
+from typing import Literal
+
+FieldStatus = Literal["valid", "missing", "invalid"]
+
+
+@dataclass(frozen=True)
+class FieldCheck[T]:
+    status: FieldStatus
+    value: T | None = None
+    reason: str | None = None
+
+
+def _missing[T]() -> FieldCheck[T]:
+    return FieldCheck(status="missing", reason="not_provided")
+
+
+def _invalid[T](reason: str) -> FieldCheck[T]:
+    return FieldCheck(status="invalid", reason=reason)
+
+
+def _clean(raw: str | None) -> str:
+    return " ".join(raw.split()) if raw else ""
+
+
+# Letters (any script), joined by single spaces, hyphens, apostrophes or periods.
+_NAME = re.compile(r"[^\W\d_]+(?:(?:[ '\u2019.-]|\. )[^\W\d_]+)*\.?")
+MAX_NAME_LENGTH = 100
+
+
+def check_person_name(raw: str | None) -> FieldCheck[str]:
+    name = _clean(raw)
+    if not name:
+        return _missing()
+    if len(name) > MAX_NAME_LENGTH:
+        return _invalid("too_long")
+    if not _NAME.fullmatch(name):
+        return _invalid("unexpected_characters")
+    return FieldCheck(status="valid", value=name)
+
+
+# Professional credentials that trail a provider's name, compared without dots or hyphens.
+_CREDENTIALS = frozenset(
+    {
+        *("MD", "DO", "DPM", "NP", "PA", "PAC", "FNP", "FNPC", "FNPBC", "APRN", "CNP", "CRNP"),
+        *("DNP", "ANP", "RN", "BSN", "MSN", "DC", "OD", "DDS", "DMD", "PHD", "MBBS", "MBCHB"),
+        *("PT", "DPT", "OT", "OTR", "FACP", "FACS", "FAAFP", "FACC", "MPH", "MS", "CPO", "CO"),
+        "CP",
+    }
+)
+_TITLE = re.compile(r"^(?:dr\.?|doctor)\s+", re.IGNORECASE)
+
+
+def _credential_key(token: str) -> str:
+    return re.sub(r"[.\-]", "", token).upper()
+
+
+def check_provider_name(raw: str | None) -> FieldCheck[str]:
+    name = _TITLE.sub("", _clean(raw))
+    # "Jane Smith, MD, FACP": keep what precedes the credentials.
+    head, *tail = [part.strip() for part in name.split(",")]
+    if tail and all(_credential_key(t) in _CREDENTIALS for p in tail for t in p.split()):
+        name = head
+    tokens = name.split()
+    while len(tokens) > 1 and _credential_key(tokens[-1]) in _CREDENTIALS:
+        tokens.pop()
+    if len(tokens) == 1 and _credential_key(tokens[0]) in _CREDENTIALS:
+        tokens = []
+    return check_person_name(" ".join(tokens))
+
+
+def npi_check_digit_ok(npi: str) -> bool:
+    """Luhn check over the NPI with the 80840 card-issuer prefix (CMS NPI standard)."""
+    total = 0
+    for position, char in enumerate(reversed("80840" + npi)):
+        digit = int(char)
+        if position % 2 == 1:
+            digit *= 2
+            if digit > 9:
+                digit -= 9
+        total += digit
+    return total % 10 == 0
+
+
+def check_npi(raw: str | None) -> FieldCheck[str]:
+    npi = re.sub(r"[\s-]", "", raw or "")
+    if not npi:
+        return _missing()
+    if not (len(npi) == 10 and npi.isascii() and npi.isdigit()):
+        return _invalid("not_10_digits")
+    if not npi_check_digit_ok(npi):
+        return _invalid("checksum_failed")
+    return FieldCheck(status="valid", value=npi)
+
+
+_MONTHS = {
+    name: number
+    for number, names in enumerate(
+        [
+            ("jan", "january"),
+            ("feb", "february"),
+            ("mar", "march"),
+            ("apr", "april"),
+            ("may",),
+            ("jun", "june"),
+            ("jul", "july"),
+            ("aug", "august"),
+            ("sep", "sept", "september"),
+            ("oct", "october"),
+            ("nov", "november"),
+            ("dec", "december"),
+        ],
+        start=1,
+    )
+    for name in names
+}
+_NUMERIC_US = re.compile(r"(\d{1,2})[/.-](\d{1,2})[/.-](\d{2}|\d{4})")
+_ISO = re.compile(r"(\d{4})-(\d{1,2})-(\d{1,2})")
+_MONTH_FIRST = re.compile(r"([a-z]+)\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})")
+_DAY_FIRST = re.compile(r"(\d{1,2})(?:st|nd|rd|th)?[\s-]+([a-z]+)\.?[\s,-]+(\d{4})")
+MIN_BIRTH_YEAR = 1900
+
+
+def _parse_date_parts(text: str) -> tuple[int, int, int] | str:
+    """Return (year, month, day) or a reason the text is not a usable date."""
+    if match := _ISO.fullmatch(text):
+        return int(match[1]), int(match[2]), int(match[3])
+    if match := _NUMERIC_US.fullmatch(text):
+        if len(match[3]) == 2:
+            return "ambiguous_two_digit_year"
+        return int(match[3]), int(match[1]), int(match[2])
+    for pattern, month_group, day_group in ((_MONTH_FIRST, 1, 2), (_DAY_FIRST, 2, 1)):
+        if (match := pattern.fullmatch(text)) and match[month_group] in _MONTHS:
+            return int(match[3]), _MONTHS[match[month_group]], int(match[day_group])
+    return "unrecognized_format"
+
+
+def check_date_of_birth(raw: str | None, today: date) -> FieldCheck[date]:
+    """Parse a date of birth as written (US month-first when numeric) and check it."""
+    text = _clean(raw).lower()
+    if not text:
+        return _missing()
+    parts = _parse_date_parts(text)
+    if isinstance(parts, str):
+        return _invalid(parts)
+    try:
+        value = date(*parts)
+    except ValueError:
+        return _invalid("not_a_real_date")
+    return check_birth_date_value(value, today)
+
+
+def check_birth_date_value(value: date | None, today: date) -> FieldCheck[date]:
+    if value is None:
+        return _missing()
+    if value > today:
+        return _invalid("in_the_future")
+    if value.year < MIN_BIRTH_YEAR:
+        return _invalid("before_1900")
+    return FieldCheck(status="valid", value=value)

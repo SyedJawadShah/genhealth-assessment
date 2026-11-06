@@ -5,8 +5,13 @@ description = "Python web service template: typed, tested, containerised, with C
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "alembic>=1.20.1",
+    "anthropic>=2.6.0",
     "fastapi>=0.115",
+    "psycopg[binary]>=3.3.8",
     "pydantic-settings>=2.6",
+    "python-multipart>=0.0.33",
+    "sqlalchemy>=2.1.8",
     "uvicorn>=0.32",
 ]
 
