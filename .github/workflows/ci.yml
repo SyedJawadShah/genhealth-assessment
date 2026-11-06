@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches-ignore: [main]  # main runs CI through deploy.yml before deploying
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Lint, types, tests, audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+        with:
+          enable-cache: true
+      - name: Install locked dependencies
+        run: uv sync --locked
+      - name: Pre-commit hooks (format, lint, strict types, secrets, workflow and shell lint)
+        run: uv run pre-commit run --all-files --show-diff-on-failure
+      - name: Tests with coverage floor
+        run: uv run pytest --cov --cov-report=term-missing
+      - name: Dependency vulnerability audit
+        run: make audit
+
+  image:
+    name: Build and smoke-test image
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build
+        env:
+          GIT_SHA: ${{ github.sha }}
+        run: docker build --platform linux/amd64 --build-arg "GIT_SHA=$GIT_SHA" -t service:ci .
+      - name: Smoke test
+        env:
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          docker run -d --name smoke -p 8000:8000 --read-only --tmpfs /tmp \
+            --cap-drop=ALL --security-opt=no-new-privileges service:ci
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/healthz -o health.json; then break; fi
+            sleep 1
+          done
+          jq -e --arg sha "$GIT_SHA" '.status == "ok" and .version == $sha' health.json
+          test "$(docker inspect --format '{{.Config.User}}' service:ci)" = "app"
+      - name: Container logs
+        if: always()
+        run: docker logs smoke || true

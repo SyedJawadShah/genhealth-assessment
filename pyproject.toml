@@ -1,0 +1,75 @@
+[project]
+name = "service"
+version = "0.1.0"
+description = "Python web service template: typed, tested, containerised, with CI and deploy."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi>=0.115",
+    "pydantic-settings>=2.6",
+    "uvicorn>=0.32",
+]
+
+[dependency-groups]
+dev = [
+    "httpx2>=2.16.0",
+    "mypy>=1.13",
+    "pip-audit>=2.7",
+    "pre-commit>=4.0",
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "ruff>=0.8",
+]
+
+[build-system]
+requires = ["uv_build>=0.13.7,<0.14"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "app"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W", "F",  # pycodestyle, pyflakes
+    "I",            # import sorting
+    "N",            # naming
+    "UP",           # modern syntax
+    "B",            # likely bugs
+    "S",            # security (bandit rules)
+    "A",            # shadowed builtins
+    "C4", "SIM", "RET", "PTH", "ERA",
+    "PT",           # pytest style
+    "ARG",          # unused arguments
+    "LOG", "G",     # logging misuse
+    "ASYNC",
+    "RUF",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]  # assert is how pytest works
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+files = ["src", "tests"]
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config"
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+branch = true
+source = ["app"]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+skip_covered = true

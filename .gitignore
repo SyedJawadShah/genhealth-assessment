@@ -1,0 +1,33 @@
+# Python and tooling
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Runtime data: never commit uploads, databases, generated output or logs
+data/
+uploads/
+*.db
+*.sqlite*
+*.log
+.audit-requirements.txt
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store

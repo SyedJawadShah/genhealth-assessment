@@ -1,0 +1,55 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false  # never interrupt a deployment halfway
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    name: Deploy to Lightsail
+    needs: ci
+    # Skipped (not failed) until the repository variables from scripts/aws_bootstrap.sh are set.
+    if: vars.AWS_DEPLOY_ROLE_ARN != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+    permissions:
+      contents: read
+      id-token: write  # OIDC: short-lived AWS credentials, no stored access keys
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      SERVICE_NAME: ${{ vars.LIGHTSAIL_SERVICE_NAME }}
+      GIT_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd  # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Install lightsailctl
+        run: |
+          sudo curl -fsSL -o /usr/local/bin/lightsailctl \
+            https://s3.us-west-2.amazonaws.com/lightsailctl/latest/linux-amd64/lightsailctl
+          sudo chmod +x /usr/local/bin/lightsailctl
+      - name: Build image
+        run: docker build --platform linux/amd64 --build-arg "GIT_SHA=$GIT_SHA" -t "service:$GIT_SHA" .
+      - name: Push, deploy and verify
+        id: deploy
+        env:
+          APP_ENV_JSON: ${{ secrets.APP_ENV_JSON }}  # optional app settings and secrets
+        run: scripts/deploy_lightsail.sh "service:$GIT_SHA" "$GIT_SHA"
