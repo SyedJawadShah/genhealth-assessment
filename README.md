@@ -1,8 +1,53 @@
-# service
+# Order intake service
 
-A starting point for a Python web service: FastAPI, strict typing, tests, pre-commit hooks,
-CI, a hardened container image and push-to-deploy on AWS Lightsail. It contains no product
-logic, only a health check and an index page.
+A REST API for durable medical equipment (DME) order intake. A user uploads a faxed or scanned
+order PDF; the service extracts the patient's name and date of birth and the ordering
+provider's name and NPI, checks every value in code, and saves an order that only that user can
+see. Values that are missing or fail a check are stored as `null` with a reason, never guessed.
+
+## Plan
+
+### Acceptance checklist
+
+1. REST API in Python.
+2. Create, read, update, list and delete for an `Order`, persisted in a database (Postgres in
+   production, SQLite locally and in tests).
+3. PDF upload endpoint.
+4. Extracts patient first name, last name and date of birth.
+5. Extracts ordering provider name and NPI.
+6. Works on unseen PDFs, including image-only scanned faxes and messy multi-page documents.
+7. Extracted values are checked in code before they are saved.
+8. Missing fields stay `null` with a status; nothing is guessed.
+9. Every order route requires authentication (registration and token login, rate limited).
+10. Users see only their own orders; other users' orders return 404.
+11. Deployed at a public URL with a working upload endpoint and Swagger UI at `/docs`.
+12. No secrets in git; commits made as the work progresses.
+13. Two demo users seeded from configuration so reviewers can check isolation.
+14. `make check` passes; tests cover main paths, edge cases and failures without network calls.
+15. README states what data is sent to Anthropic, assumptions and known limitations.
+
+### Core journey
+
+1. Register or use a demo account; get a bearer token (Swagger's **Authorize** button works).
+2. `POST /orders/upload` with a PDF: the file is checked, Claude extracts the fields, code
+   validates them, and an order is created.
+3. Read the per-field result: value, `valid` / `missing` / `invalid`, and a reason. The order
+   is `ready` when all five fields are valid, otherwise `needs_review`.
+4. `PATCH /orders/{id}` to fill in or correct fields; input is validated the same way.
+5. List, read and delete your own orders.
+
+### Assumptions
+
+- The **ordering provider** is the prescriber who signs the order, not a referring physician
+  or the author of a clinical note.
+- Ambiguous numeric dates are read as US `MM/DD/YYYY`. Two-digit birth years are treated as
+  ambiguous and flagged rather than expanded.
+- An **NPI** is valid when it is exactly 10 digits and passes the Luhn check with the `80840`
+  prefix. A failing NPI is reported as invalid and never corrected.
+- A **date of birth** is valid when it is a real calendar date, not in the future and not
+  before 1900.
+- Provider names are stored without trailing credentials (`MD`, `D.P.M`, ...).
+- The original PDF is not stored; only its SHA-256 and the extraction result are kept.
 
 ## Requirements
 
