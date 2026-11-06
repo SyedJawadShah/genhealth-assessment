@@ -2,9 +2,10 @@
 
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
+from app.deps import settings_dep as app_settings
 from app.settings import Settings
 
 router = APIRouter()
@@ -13,11 +14,6 @@ router = APIRouter()
 class Health(BaseModel):
     status: Literal["ok"]
     version: str
-
-
-def app_settings(request: Request) -> Settings:
-    settings: Settings = request.app.state.settings
-    return settings
 
 
 @router.get("/healthz")

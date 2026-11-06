@@ -25,8 +25,16 @@ def test_api_docs_available_outside_production(client: TestClient) -> None:
     assert client.get("/openapi.json").status_code == 200
 
 
-def test_api_docs_disabled_in_production() -> None:
+def test_api_docs_available_in_production_by_default() -> None:
+    # Reviewers use Swagger UI on the deployed service to try the upload endpoint.
     settings = Settings(_env_file=None, app_env="production")
+    with TestClient(create_app(settings)) as client:
+        assert client.get("/docs").status_code == 200
+        assert client.get("/openapi.json").status_code == 200
+
+
+def test_api_docs_can_be_disabled() -> None:
+    settings = Settings(_env_file=None, app_env="production", docs_enabled=False)
     with TestClient(create_app(settings)) as client:
         assert client.get("/docs").status_code == 404
         assert client.get("/openapi.json").status_code == 404
