@@ -1,10 +1,16 @@
 import logging
+from pathlib import Path
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import update
 
-from tests.conftest import VALID_NPI, Login
+from app import orders as orders_module
+from app.db import Order
+from app.main import create_app
+from app.settings import Settings
+from tests.conftest import VALID_NPI, FakeExtractor, Login, auth_headers
 
 COMPLETE = {
     "patient_first_name": "Ada",
@@ -167,3 +173,86 @@ def test_unknown_field_names_are_not_echoed_or_logged(
     logged = " ".join(f"{r.getMessage()} {r.__dict__}" for r in caplog.records)
     assert "Marie" not in response.text
     assert "Marie" not in logged
+
+
+def test_update_increments_version(client: TestClient, login: Login) -> None:
+    headers = login("alice")
+    order = _create(client, headers, **COMPLETE)
+    assert order["version"] == 1
+
+    updated = client.patch(
+        f"/orders/{order['id']}", json={"patient_first_name": "Augusta"}, headers=headers
+    )
+
+    assert updated.json()["version"] == 2
+
+
+def test_stale_update_is_rejected_with_409(client: TestClient, login: Login) -> None:
+    headers = login("alice")
+    order = _create(client, headers, **COMPLETE)
+    path = f"/orders/{order['id']}"
+    first = client.patch(
+        path, json={"patient_first_name": "Augusta"}, headers={**headers, "If-Match": '"1"'}
+    )
+    assert first.status_code == 200
+
+    stale = client.patch(
+        path, json={"patient_first_name": "Eve"}, headers={**headers, "If-Match": '"1"'}
+    )
+
+    assert stale.status_code == 409
+    assert stale.json()["error"] == "version_conflict"
+    assert client.get(path, headers=headers).json()["patient_first_name"] == "Augusta"
+
+
+@pytest.mark.parametrize("value", ["2", 'W/"2"'])
+def test_current_version_in_if_match_is_accepted(
+    client: TestClient, login: Login, value: str
+) -> None:
+    headers = login("alice")
+    order = _create(client, headers, **COMPLETE)
+    path = f"/orders/{order['id']}"
+    client.patch(path, json={"patient_first_name": "Augusta"}, headers=headers)
+
+    response = client.patch(
+        path, json={"patient_first_name": "Ada"}, headers={**headers, "If-Match": value}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["version"] == 3
+
+
+def test_malformed_if_match_is_422(client: TestClient, login: Login) -> None:
+    headers = login("alice")
+    order = _create(client, headers, **COMPLETE)
+
+    response = client.patch(
+        f"/orders/{order['id']}", json={}, headers={**headers, "If-Match": "abc"}
+    )
+
+    assert response.status_code == 422
+
+
+def test_concurrent_write_between_read_and_commit_is_409(
+    tmp_path: Path, extractor: FakeExtractor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = Settings(_env_file=None, app_env="test", database_url=f"sqlite:///{tmp_path}/c.db")
+    with TestClient(create_app(settings, extractor=extractor)) as client:
+        headers = auth_headers(client, "alice")
+        order = _create(client, headers, **COMPLETE)
+        factory = client.app.state.session_factory  # type: ignore[attr-defined]  # Starlette types app as ASGIApp
+        real_apply = orders_module._apply_manual
+
+        def apply_then_race(target: Order, body: Any, names: set[str]) -> None:
+            real_apply(target, body, names)
+            with factory() as other:  # another request commits first
+                other.execute(update(Order).values(version=Order.version + 1))
+                other.commit()
+
+        monkeypatch.setattr(orders_module, "_apply_manual", apply_then_race)
+        response = client.patch(
+            f"/orders/{order['id']}", json={"patient_first_name": "Eve"}, headers=headers
+        )
+
+    assert response.status_code == 409
+    assert response.json()["error"] == "version_conflict"

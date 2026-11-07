@@ -68,6 +68,11 @@ class Order(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )
+    # Optimistic locking: SQLAlchemy bumps this on every update and refuses a write whose
+    # version changed underneath it.
+    version: Mapped[int] = mapped_column(default=1)
+
+    __mapper_args__ = {"version_id_col": version}  # noqa: RUF012  # SQLAlchemy declarative config
 
 
 def make_engine(url: str) -> Engine:

@@ -6,10 +6,11 @@ from collections.abc import Mapping
 from datetime import date, datetime
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, UploadFile
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.exc import StaleDataError
 
 from app.auth import AppSettings, CurrentUser, DbSession, Limiter
 from app.db import Order, as_utc, utcnow
@@ -79,6 +80,7 @@ class OrderOut(BaseModel):
     patient_date_of_birth: date | None
     provider_name: str | None
     provider_npi: str | None
+    version: int = Field(description="Send as If-Match on PATCH to reject stale updates.")
     fields: dict[str, FieldReport]
     warnings: list[FieldWarning] = Field(
         description="Values that were saved but need a human check, such as an NPI that fails "
@@ -98,6 +100,7 @@ class OrderOut(BaseModel):
             patient_date_of_birth=order.patient_date_of_birth,
             provider_name=order.provider_name,
             provider_npi=order.provider_npi,
+            version=order.version,
             fields={k: FieldReport.model_validate(v) for k, v in order.field_report.items()},
             warnings=[
                 FieldWarning(field=k, code=v["status"], message=WARNING_MESSAGES[v["status"]])
@@ -280,15 +283,34 @@ def get_order(order_id: str, user: CurrentUser, session: DbSession) -> OrderOut:
     return OrderOut.of(_owned_order(session, order_id, user.id))
 
 
-@router.patch("/{order_id}")
+def _expected_version(if_match: str) -> int:
+    value = if_match.strip().removeprefix("W/").strip('"')
+    if not value.isdigit():
+        raise HTTPException(status_code=422, detail="invalid_request")
+    return int(value)
+
+
+@router.patch("/{order_id}", responses={409: {"description": "If-Match version is stale"}})
 def update_order(
-    order_id: str, body: OrderFields, user: CurrentUser, session: DbSession
+    order_id: str,
+    body: OrderFields,
+    user: CurrentUser,
+    session: DbSession,
+    if_match: Annotated[str | None, Header()] = None,
 ) -> OrderOut:
-    """Correct or fill in fields. Only the fields sent are changed, each checked again."""
+    """Correct or fill in fields. Only the fields sent are changed, each checked again.
+    Send the order's `version` as `If-Match` to get 409 instead of overwriting a newer edit."""
     order = _owned_order(session, order_id, user.id)
+    if if_match is not None and _expected_version(if_match) != order.version:
+        raise HTTPException(status_code=409, detail="version_conflict")
     _apply_manual(order, body, body.model_fields_set)
     order.updated_at = utcnow()
-    session.commit()
+    try:
+        session.commit()
+    except StaleDataError:
+        # Another request updated the order between our read and this write.
+        session.rollback()
+        raise HTTPException(status_code=409, detail="version_conflict") from None
     _log_order("order_updated", order)
     return OrderOut.of(order)
 
