@@ -8,6 +8,7 @@ Output is deterministic for a given Pillow version and font.
 import io
 import json
 import random
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -457,7 +458,23 @@ def build() -> dict[str, Any]:
     return expected
 
 
+def build_non_pdfs() -> None:
+    """Uploads that must be refused: plain text, a Word file, an image, text named .pdf."""
+    text = b"Patient: Ada Lovelace\nDOB: 12/10/1915\nOrdering physician: Charles Babbage MD\n"
+    (HERE / "not_pdf.txt").write_bytes(text)
+    (HERE / "text_renamed.pdf").write_bytes(text)
+    docx = io.BytesIO()
+    with zipfile.ZipFile(docx, "w") as archive:
+        archive.writestr("[Content_Types].xml", '<?xml version="1.0"?><Types/>')
+        archive.writestr("word/document.xml", "<w:document>Patient: Ada Lovelace</w:document>")
+    (HERE / "not_pdf.docx").write_bytes(docx.getvalue())
+    image = Image.new("L", (200, 60), 255)
+    ImageDraw.Draw(image).text((10, 20), "Patient: Ada Lovelace", fill=0)
+    image.save(HERE / "not_pdf.png")
+
+
 if __name__ == "__main__":
+    build_non_pdfs()
     results = build()
     (HERE / "expected.json").write_text(json.dumps(results, indent=2) + "\n")
     for path in sorted(HERE.glob("*.pdf")):
