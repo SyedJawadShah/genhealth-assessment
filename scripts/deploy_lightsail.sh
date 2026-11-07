@@ -107,10 +107,13 @@ done
 url=$(lightsail get-container-services --service-name "$SERVICE_NAME" \
   --query 'containerServices[0].url' --output text)
 url="${url%/}"
+# Live means the new version answers /healthz and is ready: database reachable and extraction
+# configured (/readyz answers 200 only then).
 for _ in $(seq 1 20); do
-  if curl -fsS --max-time 10 "$url/healthz" | jq -e --arg sha "$sha" '.version == $sha' >/dev/null
+  if curl -fsS --max-time 10 "$url/healthz" | jq -e --arg sha "$sha" '.version == $sha' >/dev/null \
+    && curl -fsS --max-time 10 -o /dev/null "$url/readyz"
   then
-    echo "Live: $url (version $sha)"
+    echo "Live and ready: $url (version $sha)"
     if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
       echo "url=$url" >>"$GITHUB_OUTPUT"
     fi
@@ -118,5 +121,5 @@ for _ in $(seq 1 20); do
   fi
   sleep 6
 done
-echo "Deployment $version is active, but $url/healthz does not report version $sha" >&2
+echo "Deployment $version is active, but $url does not report version $sha with /readyz 200" >&2
 exit 1
