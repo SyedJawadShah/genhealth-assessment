@@ -222,15 +222,19 @@ def test_current_version_in_if_match_is_accepted(
     assert response.json()["version"] == 3
 
 
-def test_malformed_if_match_is_422(client: TestClient, login: Login) -> None:
+@pytest.mark.parametrize("value", [b"abc", b"\xb2", b"1" * 11, b"", b'"-1"'])
+def test_malformed_if_match_is_422(client: TestClient, login: Login, value: bytes) -> None:
     headers = login("alice")
     order = _create(client, headers, **COMPLETE)
 
     response = client.patch(
-        f"/orders/{order['id']}", json={}, headers={**headers, "If-Match": "abc"}
+        f"/orders/{order['id']}",
+        json={},
+        headers={b"Authorization": headers["Authorization"].encode(), b"If-Match": value},
     )
 
     assert response.status_code == 422
+    assert response.json()["error"] == "invalid_request"
 
 
 def test_concurrent_write_between_read_and_commit_is_409(

@@ -2,6 +2,7 @@
 
 import hashlib
 import logging
+import re
 from collections.abc import Mapping
 from datetime import date, datetime
 from typing import Annotated, Any, Literal
@@ -37,6 +38,7 @@ FIELDS = (
     "provider_npi",
 )
 MAX_EXTRACTED_TEXT = 200
+_VERSION = re.compile(r"[0-9]{1,10}")
 
 
 class FieldValidationError(Exception):
@@ -285,7 +287,8 @@ def get_order(order_id: str, user: CurrentUser, session: DbSession) -> OrderOut:
 
 def _expected_version(if_match: str) -> int:
     value = if_match.strip().removeprefix("W/").strip('"')
-    if not value.isdigit():
+    # ASCII digits only, bounded: str.isdigit() also accepts characters int() rejects.
+    if not _VERSION.fullmatch(value):
         raise HTTPException(status_code=422, detail="invalid_request")
     return int(value)
 
