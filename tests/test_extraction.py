@@ -4,6 +4,7 @@ from typing import Any, cast
 
 import anthropic
 import httpx2
+import psycopg
 import pytest
 
 from app.db import make_engine
@@ -135,3 +136,19 @@ def test_hosted_postgres_urls_use_psycopg(url: str) -> None:
 
     assert engine.url.drivername == "postgresql+psycopg"
     assert engine.url.query["sslmode"] == "require"
+
+
+def test_postgres_connections_time_out(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: dict[str, Any] = {}
+
+    def fake_connect(*_args: Any, **kwargs: Any) -> None:
+        seen.update(kwargs)
+        raise ConnectionAbortedError
+
+    monkeypatch.setattr(psycopg, "connect", fake_connect)
+    engine = make_engine("postgresql://u:p@db.example.test/app?sslmode=require")
+
+    with pytest.raises(ConnectionAbortedError):
+        engine.connect()
+    assert seen["connect_timeout"] == 10
+    assert seen["sslmode"] == "require"

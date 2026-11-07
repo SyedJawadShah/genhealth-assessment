@@ -81,8 +81,11 @@ def make_engine(url: str) -> Engine:
                 url, connect_args={"check_same_thread": False}, poolclass=StaticPool
             )
         return create_engine(url, connect_args={"check_same_thread": False})
-    # Serverless Postgres closes idle connections; check each one before use.
-    return create_engine(url, pool_pre_ping=True, pool_recycle=300)
+    # Serverless Postgres closes idle connections; check each one before use. libpq waits
+    # forever by default, so bound the connect time.
+    return create_engine(
+        url, pool_pre_ping=True, pool_recycle=300, connect_args={"connect_timeout": 10}
+    )
 
 
 def make_session_factory(engine: Engine) -> sessionmaker[Session]:
