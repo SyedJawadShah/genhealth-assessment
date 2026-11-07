@@ -68,6 +68,10 @@ Register two users to check that each sees only their own orders. Two demo users
   `GITHUB_REPO=genhealth-assessment`.
 - **Spoofed `X-Forwarded-For` can dodge per-IP limits.** Mitigation: per-user, per-username
   and global upload limits do not depend on client headers and still apply.
+- **One order per upload.** A packet with orders for two patients comes back with every
+  field `null` (`needs_review`, reason `not_found_in_document`), never mixed, but the second
+  order is not split out and the reason does not say why. Mitigation: upload each order
+  separately; a future version could detect several patients and create one order each.
 - **A database connection is held during the AI call.** Heavy concurrent uploads could exhaust
   the connection pool. Mitigation: open the session only after extraction, or move extraction
   to a background job.
