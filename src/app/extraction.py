@@ -125,7 +125,9 @@ class AnthropicExtractor:
             # Typically a PDF the API cannot open: encrypted, corrupt or too many pages.
             log.warning("extraction_rejected", extra={"status": exc.status_code})
             raise ExtractionError("document_unreadable", 422) from exc
-        except (anthropic.APIStatusError, anthropic.APIConnectionError) as exc:
+        except (anthropic.APIError, ValueError) as exc:
+            # API, network and response-validation errors, plus model output that is not valid
+            # JSON or does not match the schema (pydantic's ValidationError is a ValueError).
             log.error("extraction_failed", extra={"exc_type": type(exc).__name__})
             raise ExtractionError("extraction_failed", 502) from exc
 

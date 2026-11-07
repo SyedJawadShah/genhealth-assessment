@@ -6,9 +6,15 @@ import anthropic
 import httpx2
 import psycopg
 import pytest
+from pydantic import ValidationError
 
 from app.db import make_engine
-from app.extraction import AnthropicExtractor, ExtractionError, UnconfiguredExtractor
+from app.extraction import (
+    AnthropicExtractor,
+    ExtractedOrder,
+    ExtractionError,
+    UnconfiguredExtractor,
+)
 from tests.conftest import FAKE_PDF, extracted
 
 REQUEST = httpx2.Request("POST", "https://api.anthropic.test/v1/messages")
@@ -108,6 +114,32 @@ def test_api_errors_map_to_safe_codes(error: Exception, code: str, status: int) 
     with pytest.raises(ExtractionError) as info:
         extractor.extract(FAKE_PDF)
     assert (info.value.code, info.value.status_code) == (code, status)
+
+
+def _schema_error() -> ValidationError:
+    try:
+        ExtractedOrder.model_validate({"patient_first_name": "not an object"})
+    except ValidationError as exc:
+        return exc
+    raise AssertionError("expected a validation error")
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        _schema_error(),
+        ValueError("Unterminated string starting at line 1"),
+        anthropic.APIResponseValidationError(
+            response=httpx2.Response(200, request=REQUEST), body=None
+        ),
+    ],
+)
+def test_malformed_model_output_is_a_controlled_failure(error: Exception) -> None:
+    extractor, _ = _extractor(error)
+
+    with pytest.raises(ExtractionError) as info:
+        extractor.extract(FAKE_PDF)
+    assert (info.value.code, info.value.status_code) == ("extraction_failed", 502)
 
 
 def test_unconfigured_extractor_refuses() -> None:
