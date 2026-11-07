@@ -8,6 +8,10 @@ an NPI that fails its check digit is kept but flagged.
 
 Design, data model, validation rules and trade-offs: [docs/DESIGN.md](docs/DESIGN.md).
 
+**Try it:** Swagger UI at https://service.hgn2de2jtj4ca.us-east-2.cs.amazonlightsail.com/docs.
+Register two users to check that each sees only their own orders. Two demo users (`demo1`,
+`demo2`) are available on request; their credentials are sent separately.
+
 ## Plan
 
 ### Acceptance checklist
