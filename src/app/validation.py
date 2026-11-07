@@ -48,8 +48,15 @@ def check_person_name(raw: str | None) -> FieldCheck[str]:
     return FieldCheck(status="valid", value=name)
 
 
-# Professional credentials that trail a provider's name, compared without dots or hyphens.
-_CREDENTIALS = frozenset(
+# Credentials stripped when they trail a name without a comma: exact, case-sensitive tokens
+# (a trailing period is ignored), so surnames such as "Do", "Co" or "Pa" are never removed.
+_TRAILING_CREDENTIALS = frozenset(
+    {"MD", "M.D", "DO", "D.O", "NP", "N.P", "PA", "P.A", "PA-C", "RN", "R.N"}
+    | {"DPM", "D.P.M", "DDS", "D.D.S"}
+)
+# After a comma ("Jane Smith, MD, FACP") a wider set is accepted, written in capitals and
+# compared without dots or hyphens.
+_COMMA_CREDENTIALS = frozenset(
     {
         *("MD", "DO", "DPM", "NP", "PA", "PAC", "FNP", "FNPC", "FNPBC", "APRN", "CNP", "CRNP"),
         *("DNP", "ANP", "RN", "BSN", "MSN", "DC", "OD", "DDS", "DMD", "PHD", "MBBS", "MBCHB"),
@@ -60,21 +67,33 @@ _CREDENTIALS = frozenset(
 _TITLE = re.compile(r"^(?:dr\.?|doctor)\s+", re.IGNORECASE)
 
 
-def _credential_key(token: str) -> str:
-    return re.sub(r"[.\-]", "", token).upper()
+def _is_trailing_credential(token: str) -> bool:
+    return token.rstrip(".") in _TRAILING_CREDENTIALS
+
+
+def _is_comma_credential(token: str) -> bool:
+    return token == token.upper() and re.sub(r"[.\-]", "", token) in _COMMA_CREDENTIALS
 
 
 def check_provider_name(raw: str | None) -> FieldCheck[str]:
-    name = _TITLE.sub("", _clean(raw))
-    # "Jane Smith, MD, FACP": keep what precedes the credentials.
+    """Strip a leading title and trailing credentials, but never down to a single word."""
+    name = _clean(raw)
+    bare = _TITLE.sub("", name).split()
+    if bare and all(_is_trailing_credential(t.strip(",")) for t in bare):
+        return _missing()  # only a title and credentials, no name
     head, *tail = [part.strip() for part in name.split(",")]
-    if tail and all(_credential_key(t) in _CREDENTIALS for p in tail for t in p.split()):
+    if (
+        tail
+        and len(head.split()) >= 2
+        and all(_is_comma_credential(t) for p in tail for t in p.split())
+    ):
         name = head
     tokens = name.split()
-    while len(tokens) > 1 and _credential_key(tokens[-1]) in _CREDENTIALS:
+    while len(tokens) > 2 and _is_trailing_credential(tokens[-1]):
         tokens.pop()
-    if len(tokens) == 1 and _credential_key(tokens[0]) in _CREDENTIALS:
-        tokens = []
+    untitled = _TITLE.sub("", " ".join(tokens))
+    if len(untitled.split()) >= 2:
+        tokens = untitled.split()
     return check_person_name(" ".join(tokens))
 
 

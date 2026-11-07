@@ -69,6 +69,25 @@ def test_provider_name_missing(raw: str | None) -> None:
     assert check_provider_name(raw).status == "missing"
 
 
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("Jane Do", "Jane Do"),
+        ("Alex Co", "Alex Co"),
+        ("Mary Pa", "Mary Pa"),
+        ("Jane Do MD", "Jane Do"),
+        ("JANE DO", "JANE DO"),
+        ("Raj DPM", "Raj DPM"),
+        ("Dr. Smith", "Dr. Smith"),
+        ("Jane Do, DO", "Jane Do"),
+        ("Ann Lee Phd", "Ann Lee Phd"),
+    ],
+)
+def test_provider_name_never_strips_real_surnames(raw: str, expected: str) -> None:
+    check = check_provider_name(raw)
+    assert (check.status, check.value) == ("valid", expected)
+
+
 def test_provider_name_keeps_unknown_suffix_and_validates_it() -> None:
     assert check_provider_name("Smith Clinic #2").status == "invalid"
 
