@@ -60,3 +60,16 @@ def test_registration_form_states_the_server_rules(client: TestClient) -> None:
 
     assert 'minlength="3" maxlength="32"' in html
     assert 'minlength="12" maxlength="128"' in html
+
+
+def test_script_guards_sessions_versions_and_paging(client: TestClient) -> None:
+    script = client.get("/app/app.js").text
+    html = client.get("/app/").text
+
+    # Replies from a previous session are discarded and in-flight requests aborted.
+    assert "controller.abort()" in script
+    assert "session !== sessionId" in script
+    # Saves carry the edited version so stale edits get 409 instead of overwriting.
+    assert '"If-Match": String(order.version)' in script
+    # Lists longer than one page can be extended.
+    assert 'id="load-more"' in html

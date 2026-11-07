@@ -14,8 +14,21 @@
   const OK_STATUSES = new Set(["ok", "valid", "ready", "found", "supported", "verified"]);
   const BAD_STATUSES = new Set(["invalid", "invalid_checksum", "failed", "extraction_failed"]);
 
+  const PAGE_SIZE = 100;
+
   const byId = (id) => document.getElementById(id);
   let token = sessionStorage.getItem(TOKEN_KEY);
+  // Every sign-in or sign-out starts a new session: in-flight requests are aborted and any
+  // late reply from the old session is discarded, so one user's data never shows for another.
+  let sessionId = 0;
+  let controller = new AbortController();
+  let loadedCount = 0;
+
+  class StaleSessionError extends Error {}
+
+  function isStale(error) {
+    return error instanceof StaleSessionError || (error && error.name === "AbortError");
+  }
 
   class ApiError extends Error {
     constructor(status, code, message) {
@@ -57,8 +70,9 @@
     return `Request failed (HTTP ${status})` + reference;
   }
 
-  async function api(path, { method = "GET", json, form } = {}) {
-    const headers = {};
+  async function api(path, { method = "GET", json, form, headers: extraHeaders = {} } = {}) {
+    const session = sessionId;
+    const headers = { ...extraHeaders };
     if (token) headers.Authorization = `Bearer ${token}`;
     let body;
     if (json !== undefined) {
@@ -67,10 +81,12 @@
     } else if (form !== undefined) {
       body = form; // FormData or URLSearchParams; the browser sets the content type
     }
-    const response = await fetch(path, { method, headers, body });
+    const response = await fetch(path, { method, headers, body, signal: controller.signal });
+    if (session !== sessionId) throw new StaleSessionError("stale session");
     if (response.status === 204) return null;
     const type = response.headers.get("content-type") || "";
     const data = type.includes("application/json") ? await response.json() : null;
+    if (session !== sessionId) throw new StaleSessionError("stale session");
     if (!response.ok) {
       if (response.status === 401 && token) signOutLocally("Your session has ended. Please sign in again.");
       throw new ApiError(response.status, data && data.error, describeError(response.status, data));
@@ -83,6 +99,11 @@
     box.textContent = text;
     box.classList.toggle("error", isError);
     box.hidden = !text;
+  }
+
+  function showError(error) {
+    if (isStale(error)) return; // a reply for a previous session; ignore it
+    showError(error);
   }
 
   function badge(status) {
@@ -98,6 +119,9 @@
   // ----- Session -----
 
   function setToken(value) {
+    sessionId += 1;
+    controller.abort();
+    controller = new AbortController();
     token = value;
     if (value) sessionStorage.setItem(TOKEN_KEY, value);
     else sessionStorage.removeItem(TOKEN_KEY);
@@ -111,6 +135,8 @@
     byId("detail").hidden = true;
     byId("detail").replaceChildren();
     byId("orders-body").replaceChildren();
+    byId("load-more").hidden = true;
+    loadedCount = 0;
     if (message) showMessage(message, true);
   }
 
@@ -141,6 +167,7 @@
       form.reset();
       showMessage("");
     } catch (error) {
+      if (isStale(error)) return;
       showMessage(error.status === 401 ? "Wrong username or password." : error.message, true);
     } finally {
       setBusy(form, false);
@@ -159,7 +186,7 @@
       form.reset();
       showMessage(`Account created. Signed in as ${username}.`);
     } catch (error) {
-      showMessage(error.message, true);
+      showError(error);
     } finally {
       setBusy(form, false);
     }
@@ -182,11 +209,10 @@
     return name || "(no name)";
   }
 
-  async function loadOrders() {
-    const orders = await api("/orders?limit=100&offset=0");
-    const body = byId("orders-body");
-    body.replaceChildren(
-      ...orders.map((order) =>
+  async function loadOrders({ append = false } = {}) {
+    const offset = append ? loadedCount : 0;
+    const orders = await api(`/orders?limit=${PAGE_SIZE}&offset=${offset}`);
+    const rows = orders.map((order) =>
         el(
           "tr",
           {},
@@ -198,17 +224,21 @@
           el("td", { className: "muted" }, new Date(order.created_at).toLocaleString()),
           el("td", {}, el("button", { type: "button", className: "secondary", onClick: () => openOrder(order.id) }, "Open")),
         ),
-      ),
     );
-    byId("orders-empty").hidden = orders.length > 0;
-    byId("orders-table").hidden = orders.length === 0;
+    const body = byId("orders-body");
+    if (append) body.append(...rows);
+    else body.replaceChildren(...rows);
+    loadedCount = offset + orders.length;
+    byId("orders-empty").hidden = loadedCount > 0;
+    byId("orders-table").hidden = loadedCount === 0;
+    byId("load-more").hidden = orders.length < PAGE_SIZE;
   }
 
   async function openOrder(id) {
     try {
       renderOrder(await api(`/orders/${encodeURIComponent(id)}`));
     } catch (error) {
-      showMessage(error.message, true);
+      showError(error);
     }
   }
 
@@ -305,7 +335,7 @@
       renderOrder(order);
       await loadOrders();
     } catch (error) {
-      showMessage(error.message, true);
+      showError(error);
     } finally {
       setBusy(form, false);
     }
@@ -321,12 +351,21 @@
     }
     setBusy(form, true);
     try {
-      const updated = await api(`/orders/${encodeURIComponent(order.id)}`, { method: "PATCH", json: changes });
+      const updated = await api(`/orders/${encodeURIComponent(order.id)}`, {
+        method: "PATCH",
+        json: changes,
+        headers: { "If-Match": String(order.version) },
+      });
       showMessage("Order updated.");
       renderOrder(updated);
       await loadOrders();
     } catch (error) {
-      showMessage(error.message, true);
+      if (!isStale(error) && error.status === 409) {
+        showMessage("This order was changed elsewhere, so your edit was not saved. The latest version is shown; please re-apply your change.", true);
+        await openOrder(order.id);
+        return;
+      }
+      showError(error);
     } finally {
       setBusy(form, false);
     }
@@ -341,7 +380,7 @@
       showMessage("Order deleted.");
       await loadOrders();
     } catch (error) {
-      showMessage(error.message, true);
+      showError(error);
     }
   }
 
@@ -362,7 +401,7 @@
       renderOrder(order);
       await loadOrders();
     } catch (error) {
-      showMessage(error.message, true);
+      showError(error);
     } finally {
       setBusy(form, false);
     }
@@ -375,8 +414,9 @@
     byId("register-form").addEventListener("submit", onRegister);
     byId("upload-form").addEventListener("submit", onUpload);
     byId("logout").addEventListener("click", onLogout);
-    byId("refresh").addEventListener("click", () => loadOrders().catch((e) => showMessage(e.message, true)));
+    byId("refresh").addEventListener("click", () => loadOrders().catch(showError));
     byId("new-order").addEventListener("click", renderNewOrder);
+    byId("load-more").addEventListener("click", () => loadOrders({ append: true }).catch(showError));
     if (token) {
       try {
         await enterApp();
