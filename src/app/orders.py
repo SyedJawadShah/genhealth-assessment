@@ -318,10 +318,17 @@ def update_order(
     return OrderOut.of(order)
 
 
-@router.delete("/{order_id}", status_code=204)
+@router.delete(
+    "/{order_id}", status_code=204, responses={409: {"description": "Changed concurrently"}}
+)
 def delete_order(order_id: str, user: CurrentUser, session: DbSession) -> Response:
     order = _owned_order(session, order_id, user.id)
     session.delete(order)
-    session.commit()
+    try:
+        session.commit()
+    except StaleDataError:
+        # The order changed between our read and the delete; let the client re-read it.
+        session.rollback()
+        raise HTTPException(status_code=409, detail="version_conflict") from None
     log.info("order_deleted", extra={"order_id": order_id, "user_id": user.id})
     return Response(status_code=204)

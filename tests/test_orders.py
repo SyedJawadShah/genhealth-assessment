@@ -260,3 +260,27 @@ def test_concurrent_write_between_read_and_commit_is_409(
 
     assert response.status_code == 409
     assert response.json()["error"] == "version_conflict"
+
+
+def test_delete_racing_an_update_is_409(
+    tmp_path: Path, extractor: FakeExtractor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = Settings(_env_file=None, app_env="test", database_url=f"sqlite:///{tmp_path}/d.db")
+    with TestClient(create_app(settings, extractor=extractor)) as client:
+        headers = auth_headers(client, "alice")
+        order = _create(client, headers, **COMPLETE)
+        factory = client.app.state.session_factory  # type: ignore[attr-defined]  # Starlette types app as ASGIApp
+        real_owned = orders_module._owned_order
+
+        def owned_then_race(session: Any, order_id: str, user_id: int) -> Order:
+            found = real_owned(session, order_id, user_id)
+            with factory() as other:  # a PATCH commits between our read and our delete
+                other.execute(update(Order).values(version=Order.version + 1))
+                other.commit()
+            return found
+
+        monkeypatch.setattr(orders_module, "_owned_order", owned_then_race)
+        response = client.delete(f"/orders/{order['id']}", headers=headers)
+
+    assert response.status_code == 409
+    assert response.json()["error"] == "version_conflict"
