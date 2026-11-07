@@ -84,7 +84,7 @@ as extracted, marks it `invalid_checksum`, adds a warning, and leaves the order 
 - **Latency:** about 2–4 seconds per document.
 - **Cost:** about $0.03 for the 4-page official sample (about 7,300 input and 120 output tokens
   at Claude Opus 5.5's $4 / $20 per million). It scales with page count.
-- **Tests:** `make check` passes with 210 tests at 99% branch coverage. No test calls the network.
+- **Tests:** `make check` passes with 211 tests at 99% branch coverage. No test calls the network.
 
 ## Requirements
 
