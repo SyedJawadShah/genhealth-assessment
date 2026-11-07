@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Order intake</title>
+  <link rel="stylesheet" href="app.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <h1>Order intake</h1>
+    <div id="session" hidden>
+      <span id="whoami"></span>
+      <button id="logout" type="button" class="secondary">Sign out</button>
+    </div>
+  </header>
+
+  <main>
+    <p id="message" role="status" aria-live="polite" hidden></p>
+
+    <section id="auth-view" class="grid">
+      <div class="card">
+        <h2>Sign in</h2>
+        <form id="login-form">
+          <label>Username <input name="username" autocomplete="username" required></label>
+          <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
+          <button type="submit">Sign in</button>
+        </form>
+      </div>
+      <div class="card">
+        <h2>Create an account</h2>
+        <form id="register-form">
+          <label>Username <input name="username" autocomplete="username" required></label>
+          <label>Password <input name="password" type="password" autocomplete="new-password" required></label>
+          <button type="submit">Create account and sign in</button>
+        </form>
+      </div>
+    </section>
+
+    <section id="app-view" hidden>
+      <div class="card">
+        <h2>Upload an order PDF</h2>
+        <p class="hint">Scanned faxes and multi-page documents are supported. Extraction takes a few seconds.</p>
+        <form id="upload-form" class="inline">
+          <input type="file" name="file" accept="application/pdf,.pdf" required>
+          <button type="submit">Upload and extract</button>
+        </form>
+      </div>
+
+      <div id="detail" class="card" hidden></div>
+
+      <div class="card">
+        <div class="row">
+          <h2>Your orders</h2>
+          <div class="actions">
+            <button id="new-order" type="button" class="secondary">New order</button>
+            <button id="refresh" type="button" class="secondary">Refresh</button>
+          </div>
+        </div>
+        <table id="orders-table">
+          <thead>
+            <tr><th>Patient</th><th>Date of birth</th><th>Provider</th><th>NPI</th><th>Status</th><th>Created</th><th></th></tr>
+          </thead>
+          <tbody id="orders-body"></tbody>
+        </table>
+        <p id="orders-empty" class="hint" hidden>No orders yet. Upload a PDF or create one manually.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>API documentation and every endpoint: <a href="/docs">/docs</a></footer>
+</body>
+</html>

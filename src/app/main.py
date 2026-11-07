@@ -17,6 +17,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app import auth, health, orders
 from app.db import make_engine, make_session_factory, run_migrations
 from app.extraction import AnthropicExtractor, Extractor, UnconfiguredExtractor
+from app.frontend import mount_frontend
 from app.logging_setup import configure_logging
 from app.middleware import (
     BodySizeLimitMiddleware,
@@ -128,6 +129,7 @@ def create_app(settings: Settings | None = None, extractor: Extractor | None = N
     app.include_router(health.router)
     app.include_router(auth.router)
     app.include_router(orders.router)
+    mount_frontend(app)
 
     @app.exception_handler(RequestValidationError)
     async def invalid_request(request: Request, exc: RequestValidationError) -> JSONResponse:
