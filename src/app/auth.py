@@ -29,6 +29,8 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token", auto_error=False)
 
 _SCRYPT_N, _SCRYPT_R, _SCRYPT_P = 2**14, 8, 1
+MAX_LOGIN_USERNAME = 254
+MAX_LOGIN_PASSWORD = 1024
 
 
 def hash_password(password: str) -> str:
@@ -139,6 +141,9 @@ def login(
     key: TokenKey,
 ) -> TokenOut:
     """Exchange a username and password for a bearer token (OAuth2 password flow)."""
+    # Bound sizes before the rate limiter or scrypt sees them.
+    if len(form.username) > MAX_LOGIN_USERNAME or len(form.password) > MAX_LOGIN_PASSWORD:
+        raise HTTPException(status_code=422, detail="invalid_request")
     username = form.username.lower()
     limiter.hit(f"login-ip:{client_ip(request)}", settings.login_limit_per_minute, 60)
     limiter.hit(f"login-user:{username}", settings.login_limit_per_minute, 60)

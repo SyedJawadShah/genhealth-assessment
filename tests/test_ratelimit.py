@@ -33,12 +33,22 @@ def test_limits_per_key_and_resets_after_the_window() -> None:
     limiter.hit("a", 2, 60)
 
 
-def test_expired_windows_are_evicted_when_many_keys_exist() -> None:
+def test_keys_are_stored_as_fixed_size_hashes() -> None:
+    limiter = RateLimiter(Clock())
+
+    limiter.hit("login-user:" + "x" * 5000, 1, 60)
+
+    [key] = limiter._windows
+    assert len(key) == 64
+    assert "x" not in key
+
+
+def test_expired_windows_are_pruned_every_minute() -> None:
     clock = Clock()
     limiter = RateLimiter(clock)
-    for i in range(100_001):
+    for i in range(50):
         limiter.hit(f"k{i}", 1, 1)
-    clock.now += 2
+    clock.now += 61
 
     limiter.hit("fresh", 1, 1)
 

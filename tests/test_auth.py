@@ -130,6 +130,20 @@ def test_login_is_rate_limited() -> None:
     assert int(response.headers["Retry-After"]) > 0
 
 
+@pytest.mark.parametrize(
+    "form", [{"username": "u" * 255, "password": PW}, {"username": "alice", "password": "p" * 1025}]
+)
+def test_login_rejects_oversized_credentials_before_limits(
+    client: TestClient, form: dict[str, str]
+) -> None:
+    response = client.post("/auth/token", data=form)
+
+    assert response.status_code == 422
+    assert response.json()["error"] == "invalid_request"
+    limiter = client.app.state.rate_limiter  # type: ignore[attr-defined]  # Starlette types app as ASGIApp
+    assert limiter._windows == {}
+
+
 def test_registration_is_rate_limited() -> None:
     settings = Settings(_env_file=None, app_env="test", register_limit_per_hour=2)
     with TestClient(create_app(settings)) as client:
