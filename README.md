@@ -3,7 +3,10 @@
 A REST API for durable medical equipment (DME) order intake. A user uploads a faxed or scanned
 order PDF; the service extracts the patient's name and date of birth and the ordering
 provider's name and NPI, checks every value in code, and saves an order that only that user can
-see. Values that are missing or fail a check are stored as `null` with a reason, never guessed.
+see. Values are checked in code and never guessed: a missing field is `null` with a status, and
+an NPI that fails its check digit is kept but flagged.
+
+Design, data model, validation rules and trade-offs: [docs/DESIGN.md](docs/DESIGN.md).
 
 ## Plan
 
