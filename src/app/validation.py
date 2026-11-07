@@ -1,7 +1,8 @@
 """Checks for extracted and user-entered order fields. Pure functions, no I/O.
 
-Every check returns the normalized value only when it passes. A value that is missing or fails
-is reported with a reason and never corrected or guessed.
+Every check returns the normalized value when it passes and a reason when it does not. Values
+are never corrected or guessed. An NPI that fails only its check digit is kept, flagged
+`invalid_checksum`: real faxes and test documents carry such NPIs and a reviewer must see them.
 """
 
 import re
@@ -9,7 +10,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Literal
 
-FieldStatus = Literal["valid", "missing", "invalid"]
+FieldStatus = Literal["valid", "missing", "invalid", "invalid_checksum"]
 
 
 @dataclass(frozen=True)
@@ -97,7 +98,7 @@ def check_npi(raw: str | None) -> FieldCheck[str]:
     if not (len(npi) == 10 and npi.isascii() and npi.isdigit()):
         return _invalid("not_10_digits")
     if not npi_check_digit_ok(npi):
-        return _invalid("checksum_failed")
+        return FieldCheck(status="invalid_checksum", value=npi, reason="checksum_failed")
     return FieldCheck(status="valid", value=npi)
 
 

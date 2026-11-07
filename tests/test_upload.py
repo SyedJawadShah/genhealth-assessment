@@ -36,22 +36,31 @@ def test_upload_creates_a_ready_order(client: TestClient, login: Login) -> None:
     assert client.get(f"/orders/{order['id']}", headers=headers).json() == order
 
 
-def test_upload_keeps_failed_and_missing_fields_null_with_reasons(
+def test_upload_keeps_flagged_npi_and_nulls_only_missing_fields(
     client: TestClient, login: Login, extractor: FakeExtractor
 ) -> None:
-    # Mirrors the sample fax: an NPI that fails its check digit, plus a field not found.
+    # Mirrors the sample fax: an NPI that fails its check digit is kept and flagged; a field
+    # that is not in the document is null.
     extractor.result = extracted(provider_npi="9182734556", patient_date_of_birth=None)
 
     status, order = _upload(client, login("alice"))
 
     assert status == 201
     assert order["status"] == "needs_review"
-    assert order["provider_npi"] is None
+    assert order["provider_npi"] == "9182734556"
     assert order["patient_date_of_birth"] is None
+    assert order["warnings"] == [
+        {
+            "field": "provider_npi",
+            "code": "invalid_checksum",
+            "message": "NPI fails the check digit (Luhn with prefix 80840). "
+            "Stored as extracted; verify it before use.",
+        }
+    ]
     fields = order["fields"]
     assert isinstance(fields, dict)
     assert fields["provider_npi"] == {
-        "status": "invalid",
+        "status": "invalid_checksum",
         "reason": "checksum_failed",
         "source": "extracted",
         "extracted_text": "9182734556",
@@ -78,6 +87,7 @@ def test_upload_then_correct_by_patch(
     )
 
     assert response.json()["status"] == "ready"
+    assert response.json()["warnings"] == []
     assert response.json()["fields"]["provider_npi"]["source"] == "manual"
 
 

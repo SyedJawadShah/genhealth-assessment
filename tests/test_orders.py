@@ -49,7 +49,6 @@ def test_create_partial_order_needs_review(client: TestClient, login: Login) -> 
 @pytest.mark.parametrize(
     ("field", "value", "problem"),
     [
-        ("provider_npi", "1234567890", "checksum_failed"),
         ("provider_npi", "12345", "not_10_digits"),
         ("patient_date_of_birth", "2999-01-01", "in_the_future"),
         ("patient_first_name", "R2-D2", "unexpected_characters"),
@@ -65,6 +64,17 @@ def test_create_rejects_invalid_fields_without_echoing_them(
     assert response.json()["problems"] == [{"field": f"body.{field}", "problem": problem}]
     assert value not in response.text
     assert client.get("/orders", headers=headers).json() == []
+
+
+def test_manual_npi_failing_checksum_is_saved_with_a_warning(
+    client: TestClient, login: Login
+) -> None:
+    order = _create(client, login("alice"), **{**COMPLETE, "provider_npi": "1234567890"})
+
+    assert order["provider_npi"] == "1234567890"
+    assert order["status"] == "needs_review"
+    assert order["fields"]["provider_npi"]["status"] == "invalid_checksum"
+    assert [w["code"] for w in order["warnings"]] == ["invalid_checksum"]
 
 
 def test_create_rejects_unknown_fields(client: TestClient, login: Login) -> None:
@@ -104,7 +114,7 @@ def test_invalid_patch_changes_nothing(client: TestClient, login: Login) -> None
 
     response = client.patch(
         f"/orders/{order['id']}",
-        json={"provider_npi": "1234567890", "patient_first_name": "Augusta"},
+        json={"provider_npi": "12345", "patient_first_name": "Augusta"},
         headers=headers,
     )
 

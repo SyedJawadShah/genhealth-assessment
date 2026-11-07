@@ -83,8 +83,6 @@ def test_npi_valid(raw: str) -> None:
 @pytest.mark.parametrize(
     ("raw", "reason"),
     [
-        ("9182734556", "checksum_failed"),  # the sample fax's NPI fails the check digit
-        ("1234567890", "checksum_failed"),
         ("123456789", "not_10_digits"),
         ("12345678931", "not_10_digits"),
         ("12345A7893", "not_10_digits"),
@@ -94,6 +92,14 @@ def test_npi_valid(raw: str) -> None:
 def test_npi_invalid(raw: str, reason: str) -> None:
     check = check_npi(raw)
     assert (check.status, check.value, check.reason) == ("invalid", None, reason)
+
+
+@pytest.mark.parametrize("raw", ["9182734556", "1234567890", "918-273-4556"])
+def test_npi_failing_checksum_is_kept_and_flagged(raw: str) -> None:
+    # The sample fax's NPI (9182734556) fails the check digit; keep it, never correct it.
+    check = check_npi(raw)
+    assert (check.status, check.reason) == ("invalid_checksum", "checksum_failed")
+    assert check.value == raw.replace("-", "")
 
 
 def test_npi_missing() -> None:

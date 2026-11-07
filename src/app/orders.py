@@ -56,6 +56,18 @@ class FieldReport(BaseModel):
     page: int | None = None
 
 
+class FieldWarning(BaseModel):
+    field: str
+    code: str
+    message: str
+
+
+WARNING_MESSAGES = {
+    "invalid_checksum": "NPI fails the check digit (Luhn with prefix 80840). "
+    "Stored as extracted; verify it before use.",
+}
+
+
 class OrderOut(BaseModel):
     id: str
     status: Literal["ready", "needs_review"]
@@ -66,6 +78,10 @@ class OrderOut(BaseModel):
     provider_name: str | None
     provider_npi: str | None
     fields: dict[str, FieldReport]
+    warnings: list[FieldWarning] = Field(
+        description="Values that were saved but need a human check, such as an NPI that fails "
+        "its check digit."
+    )
     created_at: datetime
     updated_at: datetime
 
@@ -81,6 +97,11 @@ class OrderOut(BaseModel):
             provider_name=order.provider_name,
             provider_npi=order.provider_npi,
             fields={k: FieldReport.model_validate(v) for k, v in order.field_report.items()},
+            warnings=[
+                FieldWarning(field=k, code=v["status"], message=WARNING_MESSAGES[v["status"]])
+                for k, v in order.field_report.items()
+                if v.get("status") in WARNING_MESSAGES
+            ],
             created_at=as_utc(order.created_at),
             updated_at=as_utc(order.updated_at),
         )

@@ -43,7 +43,12 @@ see. Values that are missing or fail a check are stored as `null` with a reason,
 - Ambiguous numeric dates are read as US `MM/DD/YYYY`. Two-digit birth years are treated as
   ambiguous and flagged rather than expanded.
 - An **NPI** is valid when it is exactly 10 digits and passes the Luhn check with the `80840`
-  prefix. A failing NPI is reported as invalid and never corrected.
+  prefix. An NPI that fails only the check digit (the official sample's does) is stored exactly
+  as extracted with status `invalid_checksum` and a warning in the response, never corrected or
+  dropped. A value that is not 10 digits is `invalid`.
+- `null` means the document does not contain the field. Values that fail other checks (an
+  impossible date, a name with digits) are also `null` in the order, with status `invalid` and
+  the extracted text kept in `fields` for review.
 - A **date of birth** is valid when it is a real calendar date, not in the future and not
   before 1900.
 - Provider names are stored without trailing credentials (`MD`, `D.P.M`, ...).
