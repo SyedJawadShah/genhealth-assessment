@@ -269,3 +269,8 @@ def test_real_pdf_is_accepted_whatever_its_name(client: TestClient, login: Login
     )
 
     assert response.status_code == 201
+
+
+def test_default_upload_limit_allows_shared_batch_testing() -> None:
+    # Reviewers may share one demo account for batch uploads.
+    assert Settings(_env_file=None).upload_limit_per_hour == 100

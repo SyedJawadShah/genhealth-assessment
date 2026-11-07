@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     # balancer; per-user and global limits do not depend on it.
     register_limit_per_hour: int = Field(default=10, gt=0)
     login_limit_per_minute: int = Field(default=10, gt=0)
-    upload_limit_per_hour: int = Field(default=30, gt=0)
+    upload_limit_per_hour: int = Field(default=100, gt=0)
     upload_global_limit_per_hour: int = Field(default=300, gt=0)
 
     @property
