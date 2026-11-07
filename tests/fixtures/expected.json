@@ -130,5 +130,124 @@
       "value": "1987654321",
       "status": "invalid_checksum"
     }
+  },
+  "official_degraded.pdf": {
+    "patient_first_name": {
+      "value": "Marie",
+      "status": "valid"
+    },
+    "patient_last_name": {
+      "value": "Curie",
+      "status": "valid"
+    },
+    "patient_date_of_birth": {
+      "value": "1900-12-05",
+      "status": "valid"
+    },
+    "provider_name": {
+      "value": "Arjun Raj",
+      "status": "valid"
+    },
+    "provider_npi": {
+      "value": "9182734556",
+      "status": "invalid_checksum"
+    }
+  },
+  "official_dob_redacted.pdf": {
+    "patient_first_name": {
+      "value": "Marie",
+      "status": "valid"
+    },
+    "patient_last_name": {
+      "value": "Curie",
+      "status": "valid"
+    },
+    "patient_date_of_birth": {
+      "value": null,
+      "status": "missing"
+    },
+    "provider_name": {
+      "value": "Arjun Raj",
+      "status": "valid"
+    },
+    "provider_npi": {
+      "value": "9182734556",
+      "status": "invalid_checksum"
+    }
+  },
+  "messy_five_page.pdf": {
+    "patient_first_name": {
+      "value": "Margaret",
+      "status": "valid",
+      "page": "3"
+    },
+    "patient_last_name": {
+      "value": "Hamilton",
+      "status": "valid",
+      "page": "3"
+    },
+    "patient_date_of_birth": {
+      "value": "1900-12-05",
+      "status": "valid",
+      "page": "3"
+    },
+    "provider_name": {
+      "value": "Elizabeth Blackwell",
+      "status": "valid",
+      "page": "5"
+    },
+    "provider_npi": {
+      "value": "1086420977",
+      "status": "valid",
+      "page": "5"
+    }
+  },
+  "two_patient_packet.pdf": {
+    "any_of": [
+      {
+        "patient_first_name": {
+          "value": "Chien-Shiung",
+          "status": "valid"
+        },
+        "patient_last_name": {
+          "value": "Wu",
+          "status": "valid"
+        },
+        "patient_date_of_birth": {
+          "value": "1912-05-31",
+          "status": "valid"
+        },
+        "provider_name": {
+          "value": "Lise Meitner",
+          "status": "valid"
+        },
+        "provider_npi": {
+          "value": "1112223338",
+          "status": "valid"
+        }
+      },
+      {
+        "patient_first_name": {
+          "value": "Emmy",
+          "status": "valid"
+        },
+        "patient_last_name": {
+          "value": "Noether",
+          "status": "valid"
+        },
+        "patient_date_of_birth": {
+          "value": "1922-03-23",
+          "status": "valid"
+        },
+        "provider_name": {
+          "value": "Max Born",
+          "status": "valid"
+        },
+        "provider_npi": {
+          "value": "1444555662",
+          "status": "valid"
+        }
+      }
+    ]
   }
 }

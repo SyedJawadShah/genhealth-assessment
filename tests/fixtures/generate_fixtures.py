@@ -9,12 +9,15 @@ import io
 import json
 import random
 from pathlib import Path
+from typing import Any
 
+import pypdf
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from app.validation import npi_check_digit_ok
 
 HERE = Path(__file__).parent
+OFFICIAL_SAMPLE = HERE.parents[1] / "data" / "DME Patient Demo Document CPAP.fax.pdf"
 FONT_PATHS = [
     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
     "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
@@ -62,6 +65,25 @@ def scanned_page(lines: list[str], rng: random.Random, angle: float, header: str
         x, y = rng.randrange(PAGE[0]), rng.randrange(PAGE[1])
         pixels[x, y] = 0 if rng.random() < 0.7 else 255
     return page.point(lambda v: 255 if v > 150 else 0).convert("1")
+
+
+def degrade(page: Image.Image, rng: random.Random, angle: float) -> Image.Image:
+    """Downscale to fax resolution, rotate, speckle and threshold an existing page image."""
+    page = page.convert("L").resize(PAGE, Image.Resampling.LANCZOS)
+    page = page.rotate(angle, resample=Image.Resampling.BICUBIC, fillcolor=255)
+    pixels = page.load()
+    assert pixels is not None
+    for _ in range(12000):
+        x, y = rng.randrange(PAGE[0]), rng.randrange(PAGE[1])
+        pixels[x, y] = 0 if rng.random() < 0.7 else 255
+    return page.point(lambda v: 255 if v > 160 else 0).convert("1")
+
+
+def official_pages() -> list[Image.Image]:
+    """The official sample's three non-blank page images (it is image-only)."""
+    reader = pypdf.PdfReader(OFFICIAL_SAMPLE)
+    images = [page.images[0].image for page in reader.pages[:3]]
+    return [image.convert("L") for image in images if image is not None]
 
 
 def image_pdf(pages: list[Image.Image]) -> bytes:
@@ -129,10 +151,10 @@ def expect(
     }
 
 
-def build() -> dict[str, dict[str, dict[str, str | None]]]:
+def build() -> dict[str, Any]:
     # Seeded noise for reproducible fixtures, not cryptography.
     rng = random.Random(20261106)  # noqa: S311
-    expected: dict[str, dict[str, dict[str, str | None]]] = {}
+    expected: dict[str, Any] = {}
     fax = "FROM: 555-010-0199   02/03/2026 09:14AM   PAGE {} OF {}"
 
     # 1. Image-only scanned fax: tilted, noisy, with a cover page.
@@ -319,6 +341,119 @@ def build() -> dict[str, dict[str, dict[str, str | None]]]:
     expected["scanned_fake_npi.pdf"] = expect(
         "Katherine", "Johnson", "1918-08-26", "Dorothy Vaughan", fake, "invalid_checksum"
     )
+    # 7-8. The official sample, degraded; then with the date of birth blacked out.
+    if OFFICIAL_SAMPLE.exists():
+        pages = official_pages()
+        (HERE / "official_degraded.pdf").write_bytes(
+            image_pdf([degrade(pg, rng, a) for pg, a in zip(pages, (3.0, -2.5, 3.2), strict=True)])
+        )
+        sample = expect(
+            "Marie", "Curie", "1900-12-05", "Arjun Raj", "9182734556", "invalid_checksum"
+        )
+        expected["official_degraded.pdf"] = sample
+        redacted = [pg.copy() for pg in pages]
+        # Page 1 "Patient Date of Birth" value and page 2 "DOB:" value, in source pixels.
+        ImageDraw.Draw(redacted[0]).rectangle((2150, 762, 2600, 850), fill=0)
+        ImageDraw.Draw(redacted[1]).rectangle((480, 955, 880, 1050), fill=0)
+        (HERE / "official_dob_redacted.pdf").write_bytes(
+            image_pdf([degrade(pg, rng, 1.0) for pg in redacted])
+        )
+        expected["official_dob_redacted.pdf"] = {
+            **sample,
+            "patient_date_of_birth": {"value": None, "status": "missing"},
+        }
+
+    # 9. Five-page messy fax with distractor people on every page.
+    referring9, ordering9 = npi("135792468"), npi("108642097")
+    five = [
+        [
+            "FAX COVER SHEET",
+            "From: Harborview Orthopedics",
+            "Phone: 555-0110   Fax: 555-0111",
+            "Contact: Nancy Drew, Intake Coordinator",
+            "To: Northwind Medical Supply",
+            "Pages: 5 including cover",
+        ],
+        [
+            "INSURANCE INFORMATION",
+            "Primary: Medicare Part B   MBI: 7AB2-CD3-EF45",
+            "Secondary: Blue Shield PPO   Member ID: BSX448812",
+            "Subscriber: self",
+            "",
+            "Emergency contact: James Hamilton (spouse)",
+            "Emergency contact phone: 555-0123",
+        ],
+        [
+            "PATIENT DEMOGRAPHICS",
+            "Name: Margaret Hamilton",
+            "Date of birth: Dec 5, 1900",
+            "Sex: F",
+            "Address: 42 Apollo Road, Boston, MA 02110",
+        ],
+        [
+            "ORDER DETAILS",
+            "Item: E0143 walker, folding, wheeled",
+            "Diagnosis: M17.0 bilateral primary osteoarthritis of knee",
+            "Length of need: 99 months",
+            f"Referring physician: Henry Gray, MD   NPI: {referring9}",
+        ],
+        [
+            "PHYSICIAN ATTESTATION",
+            "I certify this equipment is medically necessary.",
+            "",
+            "Ordering physician: Elizabeth Blackwell, MD",
+            f"NPI: {ordering9}",
+            "Signature: E. Blackwell   Date: 02/02/2026",
+        ],
+    ]
+    (HERE / "messy_five_page.pdf").write_bytes(
+        image_pdf(
+            [
+                scanned_page(lines, rng, angle, fax.format(i + 1, 5))
+                for i, (lines, angle) in enumerate(
+                    zip(five, (1.2, -1.0, 1.8, -1.5, 1.1), strict=True)
+                )
+            ]
+        )
+    )
+    five_expected = expect("Margaret", "Hamilton", "1900-12-05", "Elizabeth Blackwell", ordering9)
+    for field, page in {
+        "patient_first_name": 3,
+        "patient_last_name": 3,
+        "patient_date_of_birth": 3,
+        "provider_name": 5,
+        "provider_npi": 5,
+    }.items():
+        five_expected[field]["page"] = str(page)
+    expected["messy_five_page.pdf"] = five_expected
+
+    # 10. Two complete orders for two patients in one packet.
+    npi_a, npi_b = npi("111222333"), npi("144455566")
+    (HERE / "two_patient_packet.pdf").write_bytes(
+        text_pdf(
+            [
+                [
+                    "STANDARD WRITTEN ORDER (1 of 2)",
+                    "Patient: Chien-Shiung Wu   DOB: 05/31/1912",
+                    "Item: E0601 CPAP device",
+                    "Ordering physician: Lise Meitner, MD   NPI: " + npi_a,
+                ],
+                [
+                    "STANDARD WRITTEN ORDER (2 of 2)",
+                    "Patient: Emmy Noether   DOB: 03/23/1922",
+                    "Item: E0100 cane",
+                    "Ordering physician: Max Born, MD   NPI: " + npi_b,
+                ],
+            ]
+        )
+    )
+    # Either complete order is acceptable (or nulls); fields from both patients never are.
+    expected["two_patient_packet.pdf"] = {
+        "any_of": [
+            expect("Chien-Shiung", "Wu", "1912-05-31", "Lise Meitner", npi_a),
+            expect("Emmy", "Noether", "1922-03-23", "Max Born", npi_b),
+        ]
+    }
     return expected
 
 
