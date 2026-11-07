@@ -12,6 +12,19 @@ Design, data model, validation rules and trade-offs: [docs/DESIGN.md](docs/DESIG
 Register two users to check that each sees only their own orders. Two demo users (`demo1`,
 `demo2`) are available on request; their credentials are sent separately.
 
+## Frontend
+
+A browser UI at [/app](https://service.hgn2de2jtj4ca.us-east-2.cs.amazonlightsail.com/app/)
+(plain HTML, CSS and JavaScript in `src/app/static/`). You can sign in or create an account,
+upload an order PDF, and list your orders and create new ones. It calls the same REST API with
+a bearer token.
+
+Registration rules (the API enforces the same):
+
+- **Username:** 3 to 32 characters; letters, digits, `_`, `.` or `-`. Usernames are not case
+  sensitive.
+- **Password:** at least 12 characters (at most 128).
+
 ## Plan
 
 ### Acceptance checklist
