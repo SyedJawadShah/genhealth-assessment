@@ -118,3 +118,21 @@ def test_readyz_fails_without_token_signing_key(tmp_path: Path, extractor: FakeE
         "extraction": "ok",
         "auth": "unconfigured",
     }
+
+
+def test_landing_page_explains_and_links_without_forms_or_scripts(client: TestClient) -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+    body = response.text
+    assert "How to try it" in body
+    for link in (
+        "href='/app/'",
+        "href='/docs'",
+        "href='https://github.com/SyedJawadShah/genhealth-assessment'",
+        "href='https://github.com/SyedJawadShah/genhealth-assessment/blob/main/docs/DESIGN.md'",
+    ):
+        assert link in body
+    assert "<form" not in body
+    assert "<script" not in body
+    assert "style=" not in body

@@ -185,14 +185,34 @@ def create_app(settings: Settings | None = None, extractor: Extractor | None = N
 
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     def index() -> str:
+        # Static HTML: no forms, no scripts, no inline styles (the CSP allows none).
         name = html.escape(settings.app_name)
         version = html.escape(settings.git_sha)
+        repo = html.escape(settings.repo_url, quote=True)
         return (
             "<!doctype html><html lang='en'><head><meta charset='utf-8'>"
-            f"<title>{name}</title></head>"
-            f"<body><h1>{name}</h1><p>Version {version}</p>"
-            "<p>API documentation and a way to try the upload: <a href='/docs'>/docs</a></p>"
-            "</body></html>"
+            "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+            f"<title>{name}</title></head><body>"
+            f"<h1>{name}</h1>"
+            "<p>Upload a faxed or scanned DME order PDF. The service reads it with Claude, "
+            "extracts the patient's name and date of birth and the ordering provider's name "
+            "and NPI, checks every value in code, and saves an order only you can see. "
+            "Missing or doubtful values are flagged for review, never guessed.</p>"
+            "<h2>How to try it</h2><ol>"
+            "<li>Open the <a href='/app/'>web app</a> and create an account (username 3 to 32 "
+            "characters, password at least 12), or use a demo account if you were given one."
+            "</li>"
+            "<li>Upload an order PDF and read the extracted fields, their status and source "
+            "page.</li>"
+            "<li>Register a second account to check that it cannot see the first account's "
+            "orders.</li>"
+            "<li>Prefer the API? Use <a href='/docs'>/docs</a>: click Authorize, sign in, then "
+            "try <code>POST /orders/upload</code>.</li></ol>"
+            "<h2>More</h2><ul>"
+            f"<li><a href='{repo}'>Source code</a></li>"
+            f"<li><a href='{repo}/blob/main/docs/DESIGN.md'>Design notes</a></li>"
+            "<li><a href='/docs'>API documentation</a></li></ul>"
+            f"<p>Version {version}</p></body></html>"
         )
 
     return app

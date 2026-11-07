@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     max_request_bytes: int = Field(default=25 * 1024 * 1024, gt=0)
     # Swagger UI at /docs and the OpenAPI schema; reviewers use it to try the API.
     docs_enabled: bool = True
+    # Source repository linked from the landing page.
+    repo_url: str = "https://github.com/SyedJawadShah/genhealth-assessment"
 
     # Postgres in production (e.g. a Neon URL). Unset: SQLite locally, in-memory in tests, and
     # in production the database routes answer 503 rather than writing to an ephemeral disk.
