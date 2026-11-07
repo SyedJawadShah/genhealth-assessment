@@ -70,6 +70,7 @@ plugins = ["pydantic.mypy"]
 testpaths = ["tests"]
 addopts = "-ra --strict-markers --strict-config"
 filterwarnings = ["error"]
+markers = ["live: calls the real Anthropic API; opt in with RUN_LIVE_EXTRACTION=1"]
 
 [tool.coverage.run]
 branch = true

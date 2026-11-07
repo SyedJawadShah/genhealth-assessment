@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup fmt lint typecheck test audit hooks check run docker-build docker-run clean
+.PHONY: help setup fmt lint typecheck test score audit hooks check run docker-build docker-run clean
 
 IMAGE ?= service:local
 GIT_SHA ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo local)
@@ -24,6 +24,9 @@ typecheck: ## Strict type check
 
 test: ## Run tests with coverage floor
 	uv run pytest --cov
+
+score: ## Score live extraction against tests/fixtures (calls the Anthropic API)
+	RUN_LIVE_EXTRACTION=1 uv run pytest tests/test_fixture_scoring.py -m live -s -p no:cacheprovider
 
 audit: ## Check locked dependencies for known vulnerabilities
 	uv export --frozen --no-dev --no-emit-project --format requirements-txt -o .audit-requirements.txt --quiet
