@@ -1,5 +1,6 @@
 import hashlib
 import logging
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -190,3 +191,44 @@ def test_unconfigured_extractor_answers_503() -> None:
         code, body = _upload(client, auth_headers(client, "alice"))
 
     assert (code, body["error"]) == (503, "extraction_unavailable")
+
+
+FIXTURE_3_PAGES = (Path(__file__).parent / "fixtures" / "multipage_split.pdf").read_bytes()
+
+
+@pytest.mark.parametrize(
+    ("data", "page"), [(FIXTURE_3_PAGES, 4), (FIXTURE_3_PAGES, 0), (FAKE_PDF, 0)]
+)
+def test_cited_page_outside_document_needs_review(
+    client: TestClient, login: Login, extractor: FakeExtractor, data: bytes, page: int
+) -> None:
+    result = extracted()
+    result.provider_npi.page = page
+    extractor.result = result
+
+    code, order = _upload(client, login("alice"), data=data)
+
+    assert code == 201
+    assert order["status"] == "needs_review"
+    assert order["provider_npi"] == VALID_NPI
+    fields = order["fields"]
+    assert isinstance(fields, dict)
+    assert fields["provider_npi"]["status"] == "needs_review"
+    assert fields["provider_npi"]["reason"] == "page_out_of_range"
+    assert fields["provider_npi"]["page"] is None
+    assert fields["patient_first_name"]["status"] == "valid"
+    warnings = order["warnings"]
+    assert isinstance(warnings, list)
+    assert [w["code"] for w in warnings] == ["needs_review"]
+
+
+def test_cited_page_within_document_is_kept(
+    client: TestClient, login: Login, extractor: FakeExtractor
+) -> None:
+    result = extracted()
+    result.provider_npi.page = 3
+    extractor.result = result
+
+    _, order = _upload(client, login("alice"), data=FIXTURE_3_PAGES)
+
+    assert order["status"] == "ready"

@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.auth import AppSettings, CurrentUser, DbSession, Limiter
 from app.db import Order, as_utc, utcnow
 from app.deps import extractor_dep
-from app.extraction import ExtractedOrder, ExtractionError, Extractor
+from app.extraction import ExtractedOrder, ExtractionError, Extractor, pdf_page_count
 from app.validation import (
     FieldCheck,
     FieldStatus,
@@ -64,6 +64,8 @@ class FieldWarning(BaseModel):
 
 WARNING_MESSAGES = {
     "invalid_checksum": "NPI fails the check digit (Luhn with prefix 80840). "
+    "Stored as extracted; verify it before use.",
+    "needs_review": "The model cited a page the document does not have. "
     "Stored as extracted; verify it before use.",
 }
 
@@ -225,16 +227,22 @@ def upload_order(
         raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
 
     checks = _check_extracted(extracted, utcnow().date())
+    page_count = pdf_page_count(data)
     reports = {}
     for name, check in checks.items():
         field = getattr(extracted, name)
         raw = (field.value or "").strip()[:MAX_EXTRACTED_TEXT] or None
+        page = field.page if raw else None
+        status, reason = check.status, check.reason
+        if check.status == "missing":
+            reason = "not_found_in_document"
+        # A page the document does not have means the model's answer is suspect.
+        if page is not None and (page < 1 or (page_count is not None and page > page_count)):
+            page = None
+            if status == "valid":
+                status, reason = "needs_review", "page_out_of_range"
         reports[name] = FieldReport(
-            status=check.status,
-            reason="not_found_in_document" if check.status == "missing" else check.reason,
-            source="extracted",
-            extracted_text=raw,
-            page=field.page if raw else None,
+            status=status, reason=reason, source="extracted", extracted_text=raw, page=page
         ).model_dump()
     order = Order(
         owner_id=user.id,

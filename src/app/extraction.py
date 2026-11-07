@@ -6,11 +6,14 @@ candidate that `app.validation` checks before anything is saved.
 """
 
 import base64
+import io
 import logging
 import time
+import warnings
 from typing import Protocol
 
 import anthropic
+import pypdf
 from pydantic import BaseModel, Field
 
 from app.settings import Effort
@@ -32,6 +35,17 @@ class ExtractedOrder(BaseModel):
     patient_date_of_birth: ExtractedField
     provider_name: ExtractedField
     provider_npi: ExtractedField
+
+
+def pdf_page_count(pdf: bytes) -> int | None:
+    """Pages in the PDF, or None when it cannot be parsed locally (Claude may still read it)."""
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return len(pypdf.PdfReader(io.BytesIO(pdf)).pages)
+    except Exception as exc:  # any parse failure only disables the page bound
+        log.info("page_count_unavailable", extra={"exc_type": type(exc).__name__})
+        return None
 
 
 class ExtractionError(Exception):

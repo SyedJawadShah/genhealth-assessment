@@ -10,7 +10,8 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Literal
 
-FieldStatus = Literal["valid", "missing", "invalid", "invalid_checksum"]
+# needs_review: the value passed its checks but where it came from is doubtful.
+FieldStatus = Literal["valid", "missing", "invalid", "invalid_checksum", "needs_review"]
 
 
 @dataclass(frozen=True)
