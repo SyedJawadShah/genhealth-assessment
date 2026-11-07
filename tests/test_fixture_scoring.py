@@ -1,17 +1,23 @@
 """Score extraction against the synthetic fixtures in tests/fixtures.
 
-The mocked tests check the fixtures and the scorer. The live test calls the real model and is
-skipped unless RUN_LIVE_EXTRACTION=1 (and ANTHROPIC_API_KEY is set): `make score`.
+The offline tests run the real extractor and SDK parsing over a mock HTTP transport. The live
+test calls the real model, allows no wrong fields, and is skipped unless RUN_LIVE_EXTRACTION=1
+(and ANTHROPIC_API_KEY is set): `make score`.
 """
 
+import base64
+import hashlib
 import json
 import os
+from collections.abc import Callable
 from datetime import date
 from pathlib import Path
 
+import anthropic
+import httpx2
 import pytest
 
-from app.extraction import ExtractedField, ExtractedOrder, Extractor
+from app.extraction import AnthropicExtractor, ExtractionError, Extractor
 from app.main import _default_extractor
 from app.orders import FIELDS, _check_extracted
 from app.settings import Settings
@@ -48,17 +54,47 @@ def score(extractor: Extractor) -> tuple[int, int, list[str]]:
     return matched, total, misses
 
 
-class ExpectedAnswers:
-    """Answers each fixture with its expected values, as a perfect extractor would."""
+def _api_message(text: str, stop_reason: str = "end_turn") -> dict[str, object]:
+    return {
+        "id": "msg_test",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-opus-5-5",
+        "content": [{"type": "text", "text": text}],
+        "stop_reason": stop_reason,
+        "stop_sequence": None,
+        "usage": {"input_tokens": 1, "output_tokens": 1},
+    }
 
-    def __init__(self) -> None:
-        self._by_size = {(FIXTURES / n).stat().st_size: n for n in EXPECTED}
 
-    def extract(self, pdf: bytes) -> ExtractedOrder:
-        fields = EXPECTED[self._by_size[len(pdf)]]
-        return ExtractedOrder(
-            **{k: ExtractedField(value=fields[k]["value"], page=1) for k in FIELDS}
-        )
+def recorded_extractor(answer: Callable[[bytes], str]) -> AnthropicExtractor:
+    """The real extractor and SDK parsing, over a mock transport answering with `answer(pdf)`."""
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        document = json.loads(request.content)["messages"][0]["content"][0]
+        pdf = base64.b64decode(document["source"]["data"])
+        return httpx2.Response(200, json=_api_message(answer(pdf)))
+
+    client = anthropic.Anthropic(
+        api_key="test",
+        max_retries=0,
+        http_client=anthropic.DefaultHttpxClient(transport=httpx2.MockTransport(handler)),
+    )
+    return AnthropicExtractor(
+        api_key="test",
+        model="claude-opus-5-5",
+        effort="medium",
+        timeout_seconds=5,
+        max_retries=0,
+        client=client,
+    )
+
+
+def _expected_answer(pdf: bytes) -> str:
+    """The JSON a perfect model would return for a fixture, found by the PDF's hash."""
+    by_hash = {hashlib.sha256((FIXTURES / n).read_bytes()).digest(): n for n in EXPECTED}
+    fields = EXPECTED[by_hash[hashlib.sha256(pdf).digest()]]
+    return json.dumps({k: {"value": fields[k]["value"], "page": 1} for k in FIELDS})
 
 
 def test_fixtures_are_small_pdfs_with_complete_expectations() -> None:
@@ -74,8 +110,24 @@ def test_fixtures_are_small_pdfs_with_complete_expectations() -> None:
     }
 
 
-def test_scorer_gives_full_marks_for_expected_answers() -> None:
-    assert score(ExpectedAnswers()) == (30, 30, [])
+def test_scorer_gives_full_marks_through_the_real_parsing_path() -> None:
+    assert score(recorded_extractor(_expected_answer)) == (30, 30, [])
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "not json at all",
+        '{"patient_first_name": {"value": "Ada"}}',
+        '{"patient_first_name": "Ada", "patient_last_name": null}',
+    ],
+)
+def test_malformed_raw_sdk_response_is_extraction_failed(raw: str) -> None:
+    extractor = recorded_extractor(lambda _pdf: raw)
+
+    with pytest.raises(ExtractionError) as info:
+        extractor.extract((FIXTURES / "multipage_split.pdf").read_bytes())
+    assert (info.value.code, info.value.status_code) == ("extraction_failed", 502)
 
 
 @pytest.mark.live
@@ -91,4 +143,4 @@ def test_live_extraction_score() -> None:
     print(f"\nLive extraction score: {matched}/{total} fields")
     for miss in misses:
         print(f"  MISS {miss}")
-    assert matched / total >= 0.8
+    assert misses == []
