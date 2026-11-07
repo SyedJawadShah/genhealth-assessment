@@ -29,6 +29,9 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, default=str)
 
 
+QUIET_LOGGERS = ("anthropic", "httpx", "httpx2", "httpcore", "httpcore2")
+
+
 class _AppHandler(logging.StreamHandler[TextIO]):
     """Marker type so repeated configuration replaces only our own handler."""
 
@@ -45,3 +48,7 @@ def configure_logging(level: str) -> None:
     # Uvicorn's access log records raw paths and query strings; the request middleware
     # writes a safer per-request line instead.
     logging.getLogger("uvicorn.access").disabled = True
+    # HTTP client debug logs can include request bodies, i.e. the uploaded PDF. Keep them at
+    # WARNING whatever the root level is.
+    for name in QUIET_LOGGERS:
+        logging.getLogger(name).setLevel(logging.WARNING)

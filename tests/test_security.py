@@ -5,7 +5,7 @@ import sys
 import pytest
 from fastapi.testclient import TestClient
 
-from app.logging_setup import JsonFormatter
+from app.logging_setup import JsonFormatter, configure_logging
 from app.main import create_app
 from app.middleware import CONTENT_SECURITY_POLICY, HSTS, SECURITY_HEADERS
 from app.settings import Settings
@@ -108,3 +108,13 @@ def test_unhandled_error_log_has_type_and_request_id_only(
     entry = json.loads(formatted)
     assert entry["exc_type"] == "RuntimeError"
     assert entry["request_id"] == response.headers["X-Request-ID"]
+
+
+@pytest.mark.parametrize("name", ["anthropic", "httpx", "httpx2", "httpcore", "httpcore2"])
+def test_http_client_loggers_stay_at_warning_even_in_debug(name: str) -> None:
+    configure_logging("DEBUG")
+    try:
+        assert logging.getLogger(name).getEffectiveLevel() == logging.WARNING
+        assert logging.getLogger(f"{name}._client").getEffectiveLevel() == logging.WARNING
+    finally:
+        configure_logging("INFO")
