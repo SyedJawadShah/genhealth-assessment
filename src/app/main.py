@@ -156,10 +156,9 @@ def create_app(settings: Settings | None = None, extractor: Extractor | None = N
     @app.exception_handler(Exception)
     async def unhandled_error(request: Request, exc: Exception) -> JSONResponse:
         request_id = _request_id(request)
+        # Type and request ID only: exception messages and tracebacks can carry patient data.
         log.error(
-            "unhandled_error",
-            exc_info=exc,
-            extra={"request_id": request_id, "exc_type": type(exc).__name__},
+            "unhandled_error", extra={"request_id": request_id, "exc_type": type(exc).__name__}
         )
         # This handler runs outside the middleware stack, so it adds the headers itself.
         response = error_response("internal_error", 500, request_id)

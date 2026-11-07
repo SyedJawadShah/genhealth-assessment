@@ -84,3 +84,27 @@ def test_json_formatter_includes_exception() -> None:
     assert entry["level"] == "ERROR"
     assert entry["msg"] == "failed"
     assert "ValueError" in entry["exc"]
+
+
+def test_unhandled_error_log_has_type_and_request_id_only(
+    settings: Settings, caplog: pytest.LogCaptureFixture
+) -> None:
+    app = create_app(settings)
+
+    @app.get("/boom")
+    def boom() -> None:
+        raise RuntimeError("patient Marie Curie 12/05/1900")
+
+    with (
+        caplog.at_level(logging.ERROR, logger="app.main"),
+        TestClient(app, raise_server_exceptions=False) as client,
+    ):
+        response = client.get("/boom")
+
+    [record] = [r for r in caplog.records if r.getMessage() == "unhandled_error"]
+    formatted = JsonFormatter().format(record)
+    assert "Marie" not in formatted
+    assert record.exc_info is None
+    entry = json.loads(formatted)
+    assert entry["exc_type"] == "RuntimeError"
+    assert entry["request_id"] == response.headers["X-Request-ID"]
