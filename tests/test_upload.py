@@ -232,3 +232,40 @@ def test_cited_page_within_document_is_kept(
     _, order = _upload(client, login("alice"), data=FIXTURE_3_PAGES)
 
     assert order["status"] == "ready"
+
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+@pytest.mark.parametrize(
+    ("name", "content_type"),
+    [
+        ("not_pdf.txt", "text/plain"),
+        ("not_pdf.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+        ("not_pdf.png", "image/png"),
+        ("text_renamed.pdf", "application/pdf"),
+    ],
+)
+def test_non_pdf_uploads_get_a_clear_415(
+    client: TestClient, login: Login, extractor: FakeExtractor, name: str, content_type: str
+) -> None:
+    response = client.post(
+        "/orders/upload",
+        files={"file": (name, (FIXTURES / name).read_bytes(), content_type)},
+        headers=login("alice"),
+    )
+
+    assert response.status_code == 415
+    assert response.json()["error"] == "not_a_pdf"
+    assert response.json()["message"] == "Only PDF files are accepted."
+    assert extractor.calls == 0
+
+
+def test_real_pdf_is_accepted_whatever_its_name(client: TestClient, login: Login) -> None:
+    response = client.post(
+        "/orders/upload",
+        files={"file": ("scan.png", (FIXTURES / "multipage_split.pdf").read_bytes(), "image/png")},
+        headers=login("alice"),
+    )
+
+    assert response.status_code == 201

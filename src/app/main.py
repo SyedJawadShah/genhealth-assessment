@@ -52,6 +52,14 @@ def _token_key(settings: Settings) -> bytes | None:
     return None if settings.is_production else secrets.token_bytes(32)
 
 
+# Fixed, human-readable text for errors a client can fix; never built from input.
+ERROR_MESSAGES = {
+    "not_a_pdf": "Only PDF files are accepted.",
+    "empty_file": "The uploaded file is empty. Only PDF files are accepted.",
+    "file_too_large": "The file is larger than the upload limit.",
+}
+
+
 def _field_path(error: Mapping[str, Any]) -> str:
     parts = [str(part) for part in error.get("loc", ())]
     # An unexpected key is chosen by the client and may itself be personal data.
@@ -156,7 +164,9 @@ def create_app(settings: Settings | None = None, extractor: Extractor | None = N
 
     @app.exception_handler(StarletteHTTPException)
     async def http_error(request: Request, exc: StarletteHTTPException) -> JSONResponse:
-        response = error_response(_error_code(exc), exc.status_code, _request_id(request))
+        code = _error_code(exc)
+        extra = {"message": ERROR_MESSAGES[code]} if code in ERROR_MESSAGES else {}
+        response = error_response(code, exc.status_code, _request_id(request), **extra)
         for name, value in (exc.headers or {}).items():
             response.headers[name] = value
         return response
