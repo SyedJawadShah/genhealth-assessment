@@ -31,8 +31,9 @@
       <div class="card">
         <h2>Create an account</h2>
         <form id="register-form">
-          <label>Username <input name="username" autocomplete="username" required></label>
-          <label>Password <input name="password" type="password" autocomplete="new-password" required></label>
+          <p class="hint">Username: 3–32 letters, numbers, dots, dashes or underscores. Password: at least 12 characters.</p>
+          <label>Username <input name="username" autocomplete="username" required minlength="3" maxlength="32" pattern="[A-Za-z0-9_.\-]+" title="3–32 letters, numbers, dots, dashes or underscores"></label>
+          <label>Password <input name="password" type="password" autocomplete="new-password" required minlength="12" maxlength="128"></label>
           <button type="submit">Create account and sign in</button>
         </form>
       </div>

@@ -46,3 +46,17 @@ def test_bare_app_path_redirects_to_the_page(client: TestClient) -> None:
 
     assert response.status_code in (307, 308)
     assert response.headers["location"].endswith("/app/")
+
+
+def test_hidden_sections_stay_hidden(client: TestClient) -> None:
+    # Layout rules like `.grid { display: grid }` would otherwise override `hidden`.
+    styles = client.get("/app/app.css").text
+
+    assert "[hidden] { display: none !important; }" in styles
+
+
+def test_registration_form_states_the_server_rules(client: TestClient) -> None:
+    html = client.get("/app/").text
+
+    assert 'minlength="3" maxlength="32"' in html
+    assert 'minlength="12" maxlength="128"' in html
