@@ -64,7 +64,9 @@ def test_provider_name_strips_title_and_credentials(raw: str, expected: str) -> 
     assert (check.status, check.value) == ("valid", expected)
 
 
-@pytest.mark.parametrize("raw", [None, "", "MD", "Dr. MD"])
+@pytest.mark.parametrize(
+    "raw", [None, "", "MD", "Dr. MD", "Dr. MD, FACP", "MD, FACP", "M.D., F.A.C.P.", "DO FACC"]
+)
 def test_provider_name_missing(raw: str | None) -> None:
     assert check_provider_name(raw).status == "missing"
 

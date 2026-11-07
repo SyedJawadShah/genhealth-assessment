@@ -76,11 +76,16 @@ def _is_comma_credential(token: str) -> bool:
     return token == token.upper() and re.sub(r"[.\-]", "", token) in _COMMA_CREDENTIALS
 
 
+def _is_credential(token: str) -> bool:
+    """Either credential set: used to decide that a value holds no name at all."""
+    return _is_trailing_credential(token) or _is_comma_credential(token)
+
+
 def check_provider_name(raw: str | None) -> FieldCheck[str]:
     """Strip a leading title and trailing credentials, but never down to a single word."""
     name = _clean(raw)
     bare = _TITLE.sub("", name).split()
-    if bare and all(_is_trailing_credential(t.strip(",")) for t in bare):
+    if bare and all(_is_credential(t.strip(",")) for t in bare):
         return _missing()  # only a title and credentials, no name
     head, *tail = [part.strip() for part in name.split(",")]
     if (
