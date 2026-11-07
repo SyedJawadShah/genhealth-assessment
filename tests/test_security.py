@@ -5,6 +5,7 @@ import sys
 import pytest
 from fastapi.testclient import TestClient
 
+from app.extraction import pdf_page_count
 from app.logging_setup import JsonFormatter, configure_logging
 from app.main import create_app
 from app.middleware import CONTENT_SECURITY_POLICY, HSTS, SECURITY_HEADERS
@@ -116,5 +117,26 @@ def test_http_client_loggers_stay_at_warning_even_in_debug(name: str) -> None:
     try:
         assert logging.getLogger(name).getEffectiveLevel() == logging.WARNING
         assert logging.getLogger(f"{name}._client").getEffectiveLevel() == logging.WARNING
+    finally:
+        configure_logging("INFO")
+
+
+MARKER_PDF = (
+    b"%PDF-1.4\n1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n"
+    b"2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n"
+    b"3 0 obj << /Type /Page /Parent 2 0 R /PATIENTMARKER 5 >> endobj\n"
+    b"xref\n0 4\nPATIENTMARKER garbage\n"
+    b"trailer << /Size 4 /Root 1 0 R >>\nstartxref\n999999\n%%EOF\n"
+)
+
+
+def test_pypdf_messages_never_reach_logs(caplog: pytest.LogCaptureFixture) -> None:
+    configure_logging("DEBUG")
+    try:
+        assert logging.getLogger("pypdf").getEffectiveLevel() == logging.ERROR
+        with caplog.at_level(logging.DEBUG):
+            pdf_page_count(MARKER_PDF)
+        assert not [r for r in caplog.records if r.name.startswith("pypdf")]
+        assert "PATIENTMARKER" not in caplog.text
     finally:
         configure_logging("INFO")

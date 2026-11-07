@@ -52,3 +52,5 @@ def configure_logging(level: str) -> None:
     # WARNING whatever the root level is.
     for name in QUIET_LOGGERS:
         logging.getLogger(name).setLevel(logging.WARNING)
+    # pypdf warnings can quote document content; only errors, which name the failure, pass.
+    logging.getLogger("pypdf").setLevel(logging.ERROR)
