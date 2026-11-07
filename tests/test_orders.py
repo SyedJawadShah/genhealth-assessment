@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 import pytest
@@ -150,3 +151,19 @@ def test_unknown_order_is_404(client: TestClient, login: Login) -> None:
 
 def test_list_rejects_bad_paging(client: TestClient, login: Login) -> None:
     assert client.get("/orders?limit=0", headers=login("alice")).status_code == 422
+
+
+def test_unknown_field_names_are_not_echoed_or_logged(
+    client: TestClient, login: Login, caplog: pytest.LogCaptureFixture
+) -> None:
+    headers = login("alice")
+    with caplog.at_level(logging.INFO):
+        response = client.post("/orders", json={"Marie Curie 1900": "x"}, headers=headers)
+
+    assert response.status_code == 422
+    assert response.json()["problems"] == [
+        {"field": "body.<unknown field>", "problem": "extra_forbidden"}
+    ]
+    logged = " ".join(f"{r.getMessage()} {r.__dict__}" for r in caplog.records)
+    assert "Marie" not in response.text
+    assert "Marie" not in logged

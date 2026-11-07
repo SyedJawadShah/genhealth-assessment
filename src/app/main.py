@@ -3,9 +3,10 @@
 import html
 import logging
 import secrets
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 from http import HTTPStatus
+from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -48,6 +49,14 @@ def _token_key(settings: Settings) -> bytes | None:
         return settings.secret_key.get_secret_value().encode()
     # Outside production a per-process key is fine: tokens just end at restart.
     return None if settings.is_production else secrets.token_bytes(32)
+
+
+def _field_path(error: Mapping[str, Any]) -> str:
+    parts = [str(part) for part in error.get("loc", ())]
+    # An unexpected key is chosen by the client and may itself be personal data.
+    if error.get("type") == "extra_forbidden" and parts:
+        parts[-1] = "<unknown field>"
+    return ".".join(parts)
 
 
 def _error_code(exc: StarletteHTTPException) -> str:
@@ -125,10 +134,7 @@ def create_app(settings: Settings | None = None, extractor: Extractor | None = N
         # Say which field had which kind of problem, but never echo the submitted value:
         # it can be personal data, and FastAPI's default response includes it.
         problems = [
-            {
-                "field": ".".join(str(part) for part in error.get("loc", ())),
-                "problem": str(error.get("type", "invalid")),
-            }
+            {"field": _field_path(error), "problem": str(error.get("type", "invalid"))}
             for error in exc.errors()
         ]
         request_id = _request_id(request)
