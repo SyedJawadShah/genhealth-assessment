@@ -27,6 +27,7 @@ class Readiness(BaseModel):
     status: Literal["ready", "not_ready"]
     database: Literal["ok", "unavailable"]
     extraction: Literal["ok", "unconfigured"]
+    auth: Literal["ok", "unconfigured"]
 
 
 @router.get("/healthz")
@@ -49,12 +50,14 @@ def _database_ok(factory: sessionmaker[Session] | None) -> bool:
 
 @router.get("/readyz", responses={503: {"model": Readiness}})
 def readyz(request: Request) -> JSONResponse:
-    """Readiness: the database answers and extraction is configured."""
+    """Readiness: the database answers, extraction is configured and tokens can be signed."""
     database_ok = _database_ok(request.app.state.session_factory)
     extraction_ok = not isinstance(request.app.state.extractor, UnconfiguredExtractor)
+    auth_ok = request.app.state.token_key is not None  # SECRET_KEY, which signs tokens
     body = Readiness(
-        status="ready" if database_ok and extraction_ok else "not_ready",
+        status="ready" if database_ok and extraction_ok and auth_ok else "not_ready",
         database="ok" if database_ok else "unavailable",
         extraction="ok" if extraction_ok else "unconfigured",
+        auth="ok" if auth_ok else "unconfigured",
     )
     return JSONResponse(body.model_dump(), status_code=200 if body.status == "ready" else 503)

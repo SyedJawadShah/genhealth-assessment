@@ -7,6 +7,7 @@ from sqlalchemy.exc import OperationalError
 from app.db import make_engine, make_session_factory
 from app.main import create_app
 from app.settings import Settings
+from tests.conftest import FakeExtractor
 
 
 def test_healthz_reports_status_and_version(client: TestClient) -> None:
@@ -63,7 +64,12 @@ def test_readyz_ok_when_database_and_extraction_work(client: TestClient) -> None
     response = client.get("/readyz")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ready", "database": "ok", "extraction": "ok"}
+    assert response.json() == {
+        "status": "ready",
+        "database": "ok",
+        "extraction": "ok",
+        "auth": "ok",
+    }
 
 
 def test_readyz_fails_without_extraction_key() -> None:
@@ -75,6 +81,7 @@ def test_readyz_fails_without_extraction_key() -> None:
         "status": "not_ready",
         "database": "ok",
         "extraction": "unconfigured",
+        "auth": "ok",
     }
 
 
@@ -95,3 +102,19 @@ def test_readyz_fails_when_database_query_fails(client: TestClient, tmp_path: Pa
 
     assert response.status_code == 503
     assert response.json()["database"] == "unavailable"
+
+
+def test_readyz_fails_without_token_signing_key(tmp_path: Path, extractor: FakeExtractor) -> None:
+    settings = Settings(
+        _env_file=None, app_env="production", database_url=f"sqlite:///{tmp_path}/r.db"
+    )
+    with TestClient(create_app(settings, extractor=extractor)) as client:
+        response = client.get("/readyz")
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "status": "not_ready",
+        "database": "ok",
+        "extraction": "ok",
+        "auth": "unconfigured",
+    }
