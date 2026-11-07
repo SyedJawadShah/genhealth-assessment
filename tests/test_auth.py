@@ -211,3 +211,22 @@ def test_password_hash_round_trip_and_bad_stored_hash() -> None:
 
 def test_login_fixture_users_are_isolated(login: Login) -> None:
     assert login("carol") != login("dave")
+
+
+def test_demo_password_change_revokes_existing_tokens(tmp_path: object) -> None:
+    url = f"sqlite:///{tmp_path}/revoke.db"
+    first = {"demo1": SecretStr("first-password-1"), "demo2": SecretStr("other-password-1")}
+    settings = Settings(
+        _env_file=None, app_env="test", database_url=url, secret_key="k" * 32, demo_users=first
+    )
+    with TestClient(create_app(settings)) as client:
+        old = _token(client, "demo1", "first-password-1")
+        kept = _token(client, "demo2", "other-password-1")
+
+    changed = {**first, "demo1": SecretStr("second-password-2")}
+    settings = settings.model_copy(update={"demo_users": changed})
+    with TestClient(create_app(settings)) as client:
+        assert client.get("/auth/me", headers={"Authorization": f"Bearer {old}"}).status_code == 401
+        assert (
+            client.get("/auth/me", headers={"Authorization": f"Bearer {kept}"}).status_code == 200
+        )

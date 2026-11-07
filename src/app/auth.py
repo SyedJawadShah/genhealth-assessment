@@ -63,12 +63,14 @@ def token_digest(token: str, key: bytes) -> str:
 
 
 def upsert_user(session: Session, username: str, password: str) -> None:
-    """Create a user, or reset its password. Used to seed demo accounts at startup."""
+    """Create a user, or reset its password and revoke its tokens. Seeds demo accounts."""
     user = session.scalar(select(User).where(User.username == username))
     if user is None:
         session.add(User(username=username, password_hash=hash_password(password)))
     elif not verify_password(password, user.password_hash):
         user.password_hash = hash_password(password)
+        # A changed password must end sessions opened with the old one.
+        session.execute(delete(AuthToken).where(AuthToken.user_id == user.id))
 
 
 class Credentials(BaseModel):
