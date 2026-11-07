@@ -10,6 +10,7 @@ from http import HTTPStatus
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse
+from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import auth, health, orders
@@ -72,7 +73,16 @@ def create_app(settings: Settings | None = None, extractor: Extractor | None = N
         if engine is None:
             log.error("database_not_configured")
         else:
-            run_migrations(engine)
+            try:
+                run_migrations(engine)
+            except SQLAlchemyError as exc:
+                # The driver's first line says why (timeout, auth, DNS) and holds no password.
+                reason = str(getattr(exc, "orig", exc)).splitlines()[0][:300]
+                log.error(
+                    "database_unreachable",
+                    extra={"exc_type": type(exc).__name__, "detail": reason},
+                )
+                raise
             with make_session_factory(engine)() as session:
                 for username, password in settings.demo_users.items():
                     auth.upsert_user(session, username.lower(), password.get_secret_value())

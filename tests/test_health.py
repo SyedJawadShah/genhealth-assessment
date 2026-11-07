@@ -1,4 +1,8 @@
+from pathlib import Path
+
+import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import OperationalError
 
 from app.main import create_app
 from app.settings import Settings
@@ -38,3 +42,17 @@ def test_api_docs_can_be_disabled() -> None:
     with TestClient(create_app(settings)) as client:
         assert client.get("/docs").status_code == 404
         assert client.get("/openapi.json").status_code == 404
+
+
+def test_unreachable_database_fails_startup_with_a_clear_log(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    url = f"sqlite:///{tmp_path}/missing-dir/app.db"
+    settings = Settings(_env_file=None, app_env="test", database_url=url)
+
+    with pytest.raises(OperationalError), TestClient(create_app(settings)):
+        pass
+
+    [record] = [r for r in caplog.records if r.getMessage() == "database_unreachable"]
+    assert record.__dict__["exc_type"] == "OperationalError"
+    assert "missing-dir" not in record.__dict__["detail"]
