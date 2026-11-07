@@ -57,6 +57,17 @@ Design, data model, validation rules and trade-offs: [docs/DESIGN.md](docs/DESIG
 - Provider names are stored without trailing credentials (`MD`, `D.P.M`, ...).
 - The original PDF is not stored; only its SHA-256 and the extraction result are kept.
 
+## Known limitations
+
+- **Deploy trust is broad.** The AWS deploy role trusts every repository owned by the GitHub
+  account. Mitigation: after grading, re-run `scripts/aws_bootstrap.sh` with
+  `GITHUB_REPO=genhealth-assessment`.
+- **Spoofed `X-Forwarded-For` can dodge per-IP limits.** Mitigation: per-user, per-username
+  and global upload limits do not depend on client headers and still apply.
+- **A database connection is held during the AI call.** Heavy concurrent uploads could exhaust
+  the connection pool. Mitigation: open the session only after extraction, or move extraction
+  to a background job.
+
 ## Requirements
 
 - Python 3.12, [uv](https://docs.astral.sh/uv/), make, git
