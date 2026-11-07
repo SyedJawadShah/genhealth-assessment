@@ -1,0 +1,53 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R] /Count 3 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 246 >>
+stream
+BT /F1 11 Tf 15 TL 60 740 Td (Riverbend Family Clinic - Patient Demographics) Tj T* () Tj T* (Patient Name: Alan Turing) Tj T* (DOB: 06/23/1952) Tj T* (Sex: M) Tj T* (Insurance: Medicare Part B, MBI 1EG4-TE5-MK73) Tj T* (Phone: 555-0142) Tj T* ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 278 >>
+stream
+BT /F1 11 Tf 15 TL 60 740 Td (Progress Note) Tj T* () Tj T* (Chief complaint: difficulty walking more than 50 feet.) Tj T* (Assessment: severe osteoarthritis of both knees.) Tj T* (Plan: standard walker, follow up in 6 weeks.) Tj T* (Note written by: Rachel Carson, RN) Tj T* ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 9 0 R >>
+endobj
+9 0 obj
+<< /Length 314 >>
+stream
+BT /F1 11 Tf 15 TL 60 740 Td (Standard Written Order) Tj T* () Tj T* (Item: E0130 walker, rigid, adjustable) Tj T* (Quantity: 1   Length of need: lifetime) Tj T* () Tj T* (Prescriber: Barbara McClintock, DO) Tj T* (Prescriber NPI: 1618033983) Tj T* (Prescriber signature: B. McClintock   Date: 01/30/2026) Tj T* ET
+endstream
+endobj
+xref
+0 10
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000127 00000 n 
+0000000197 00000 n 
+0000000323 00000 n 
+0000000620 00000 n 
+0000000746 00000 n 
+0000001075 00000 n 
+0000001201 00000 n 
+trailer << /Size 10 /Root 1 0 R >>
+startxref
+1566
+%%EOF

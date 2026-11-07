@@ -1,0 +1,134 @@
+{
+  "scanned_fax_tilted.pdf": {
+    "patient_first_name": {
+      "value": "Rosalind",
+      "status": "valid"
+    },
+    "patient_last_name": {
+      "value": "Franklin",
+      "status": "valid"
+    },
+    "patient_date_of_birth": {
+      "value": "1960-07-25",
+      "status": "valid"
+    },
+    "provider_name": {
+      "value": "Linus Pauling",
+      "status": "valid"
+    },
+    "provider_npi": {
+      "value": "1428567196",
+      "status": "valid"
+    }
+  },
+  "multipage_split.pdf": {
+    "patient_first_name": {
+      "value": "Alan",
+      "status": "valid"
+    },
+    "patient_last_name": {
+      "value": "Turing",
+      "status": "valid"
+    },
+    "patient_date_of_birth": {
+      "value": "1952-06-23",
+      "status": "valid"
+    },
+    "provider_name": {
+      "value": "Barbara McClintock",
+      "status": "valid"
+    },
+    "provider_npi": {
+      "value": "1618033983",
+      "status": "valid"
+    }
+  },
+  "multiple_providers.pdf": {
+    "patient_first_name": {
+      "value": "Carl",
+      "status": "valid"
+    },
+    "patient_last_name": {
+      "value": "Sagan",
+      "status": "valid"
+    },
+    "patient_date_of_birth": {
+      "value": "1954-11-09",
+      "status": "valid"
+    },
+    "provider_name": {
+      "value": "Vera Rubin",
+      "status": "valid"
+    },
+    "provider_npi": {
+      "value": "1223606793",
+      "status": "valid"
+    }
+  },
+  "missing_dob.pdf": {
+    "patient_first_name": {
+      "value": "Hedy",
+      "status": "valid"
+    },
+    "patient_last_name": {
+      "value": "Lamarr",
+      "status": "valid"
+    },
+    "patient_date_of_birth": {
+      "value": null,
+      "status": "missing"
+    },
+    "provider_name": {
+      "value": "Jonas Salk",
+      "status": "valid"
+    },
+    "provider_npi": {
+      "value": "1936491228",
+      "status": "valid"
+    }
+  },
+  "unusual_labels.pdf": {
+    "patient_first_name": {
+      "value": "Ada",
+      "status": "valid"
+    },
+    "patient_last_name": {
+      "value": "Lovelace",
+      "status": "valid"
+    },
+    "patient_date_of_birth": {
+      "value": "1915-12-10",
+      "status": "valid"
+    },
+    "provider_name": {
+      "value": "Charles Babbage",
+      "status": "valid"
+    },
+    "provider_npi": {
+      "value": "1271828182",
+      "status": "valid"
+    }
+  },
+  "scanned_fake_npi.pdf": {
+    "patient_first_name": {
+      "value": "Katherine",
+      "status": "valid"
+    },
+    "patient_last_name": {
+      "value": "Johnson",
+      "status": "valid"
+    },
+    "patient_date_of_birth": {
+      "value": "1918-08-26",
+      "status": "valid"
+    },
+    "provider_name": {
+      "value": "Dorothy Vaughan",
+      "status": "valid"
+    },
+    "provider_npi": {
+      "value": "1987654321",
+      "status": "invalid_checksum"
+    }
+  }
+}

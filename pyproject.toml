@@ -19,6 +19,7 @@ dependencies = [
 dev = [
     "httpx2>=2.16.0",
     "mypy>=1.13",
+    "pillow>=13.0.0",
     "pip-audit>=2.7",
     "pre-commit>=4.0",
     "pytest>=8.3",
