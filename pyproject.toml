@@ -6,11 +6,11 @@ readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.20.1",
-    "anthropic>=2.6.0",
-    "fastapi>=0.115",
+    "anthropic>=2.8.0",
+    "fastapi>=0.162.4",
     "psycopg[binary]>=3.3.8",
     "pydantic-settings>=2.6",
-    "pypdf>=7.0.0",
+    "pypdf>=7.0.1",
     "python-multipart>=0.0.33",
     "sqlalchemy>=2.1.8",
     "uvicorn>=0.32",
@@ -25,7 +25,7 @@ dev = [
     "pre-commit>=4.0",
     "pytest>=8.3",
     "pytest-cov>=6.0",
-    "ruff>=0.8",
+    "ruff>=0.17.4",
 ]
 
 [build-system]
