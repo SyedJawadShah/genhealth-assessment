@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ---- build: resolve the locked dependencies into a virtualenv ----
-FROM python:3.12-slim AS build
+FROM python:3.15-slim AS build
 COPY --from=ghcr.io/astral-sh/uv:0.13.7 /uv /bin/uv
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
@@ -15,7 +15,7 @@ COPY src ./src
 RUN uv sync --locked --no-dev --no-editable
 
 # ---- runtime: no build tools, no source tree, non-root ----
-FROM python:3.12-slim AS runtime
+FROM python:3.15-slim AS runtime
 RUN groupadd --system app && useradd --system --gid app --no-create-home app
 WORKDIR /app
 COPY --from=build --chown=app:app /app/.venv /app/.venv
