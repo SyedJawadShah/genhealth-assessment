@@ -6,30 +6,30 @@ readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.20.1",
-    "anthropic>=2.6.0",
-    "fastapi>=0.115",
-    "psycopg[binary]>=3.3.8",
-    "pydantic-settings>=2.6",
-    "pypdf>=7.0.0",
-    "python-multipart>=0.0.33",
-    "sqlalchemy>=2.1.8",
+    "anthropic>=2.10.0",
+    "fastapi>=0.163.2",
+    "psycopg[binary]>=3.3.9",
+    "pydantic-settings>=2.16.3",
+    "pypdf>=7.1.0",
+    "python-multipart>=0.0.34",
+    "sqlalchemy>=2.1.9",
     "uvicorn>=0.32",
 ]
 
 [dependency-groups]
 dev = [
-    "httpx2>=2.16.0",
+    "httpx2>=2.16.2",
     "mypy>=1.13",
     "pillow>=13.0.0",
     "pip-audit>=2.7",
     "pre-commit>=4.0",
     "pytest>=8.3",
     "pytest-cov>=6.0",
-    "ruff>=0.8",
+    "ruff>=0.17.5",
 ]
 
 [build-system]
-requires = ["uv_build>=0.13.7,<0.14"]
+requires = ["uv_build>=0.13.9,<0.14"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
